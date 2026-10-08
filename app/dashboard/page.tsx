@@ -1,393 +1,845 @@
 'use client';
+import './dashboard.css';
 
-import { useState, useEffect } from 'react';
 
-/* ─────────────── Chart: Sparkline ─────────── */
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const H = 36, W = 100;
-  const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * W;
-    const y = H - ((v - min) / range) * (H - 6) - 3;
-    return `${x},${y}`;
-  }).join(' ');
-  const area = `0,${H} ${pts} ${W},${H}`;
+import { useEffect, useState } from 'react';
 
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
-      <defs>
-        <linearGradient id={`g${color.slice(1)}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.15} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <polygon points={area} fill={`url(#g${color.slice(1)})`} />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5}
-                strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+/* =========================
+   TYPES
+========================= */
 
-/* ─────────────── Chart: Bar ────────────────── */
-function BarChart({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(...data.map(d => d.value));
-  return (
-    <div className="flex items-end gap-[5px] h-36">
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-          <div className="w-full flex flex-col justify-end" style={{ height: '112px' }}>
-            <div
-              className="w-full rounded-t-sm animate-bar"
-              style={{
-                height: `${(d.value / max) * 100}%`,
-                backgroundColor: `#4f63d2`,
-                opacity: 0.25 + (i / data.length) * 0.55,
-                animationDelay: `${i * 0.04}s`,
-              }}
-            />
-          </div>
-          <span className="text-[9.5px] text-muted/50 font-medium">{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+type Stat = {
+  title: string;
+  value: string;
+  change: string;
+  positive: boolean;
+  description: string;
+  data: number[];
+};
 
-/* ─────────────── Chart: Donut ──────────────── */
-function DonutChart({ items }: { items: { label: string; value: number; color: string }[] }) {
-  const total = items.reduce((s, i) => s + i.value, 0);
-  const R = 38, C = 2 * Math.PI * R;
-  let cum = 0;
+type Activity = {
+  id: number;
+  name: string;
+  action: string;
+  time: string;
+  amount?: string;
+  initials: string;
+};
 
-  return (
-    <div className="flex items-center gap-5">
-      <div className="relative shrink-0" style={{ width: 96, height: 96 }}>
-        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-          {/* track */}
-          <circle cx="50" cy="50" r={R} fill="none" stroke="#f0f2f5" strokeWidth={9} />
-          {items.map((item, i) => {
-            const len = (item.value / total) * C;
-            const off = cum;
-            cum += len;
-            return (
-              <circle key={i} cx="50" cy="50" r={R} fill="none"
-                stroke={item.color} strokeWidth={9}
-                strokeDasharray={`${len} ${C - len}`}
-                strokeDashoffset={-off}
-                strokeLinecap="round"
-                style={{ transition: 'stroke-dasharray 0.6s ease' }}
-              />
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[15px] font-semibold text-foreground">{total.toLocaleString()}</span>
-          <span className="text-[9px] text-muted/50 mt-0.5">Total</span>
-        </div>
-      </div>
+type Product = {
+  name: string;
+  category: string;
+  sales: number;
+  revenue: string;
+  trend: number;
+};
 
-      <ul className="space-y-2 min-w-0 flex-1">
-        {items.map((item, i) => (
-          <li key={i} className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-            <span className="text-[12px] text-muted truncate">{item.label}</span>
-            <span className="ml-auto text-[12px] font-medium text-foreground/70 tabular-nums shrink-0">
-              {item.value.toLocaleString()}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+/* =========================
+   DUMMY DATA
+========================= */
 
-/* ─────────────── Static data ───────────────── */
-const STATS = [
+const STATS: Stat[] = [
   {
     title: 'Total Revenue',
     value: '$48,295',
-    sub: 'vs last month',
-    change: '+12.5%',
-    up: true,
-    data: [30,38,34,50,46,60,68,63,74,79,83,76],
-    color: '#4f63d2',
+    change: '12.5%',
+    positive: true,
+    description: 'vs. previous month',
+    data: [35, 42, 38, 48, 44, 58, 52, 68, 62, 72, 65, 82],
   },
   {
     title: 'Total Users',
     value: '2,847',
-    sub: 'active accounts',
-    change: '+8.2%',
-    up: true,
-    data: [18,24,21,29,27,34,31,37,41,39,47,51],
-    color: '#5b8ca8',
+    change: '8.2%',
+    positive: true,
+    description: 'vs. previous month',
+    data: [30, 35, 32, 42, 38, 48, 45, 54, 50, 62, 58, 70],
   },
   {
     title: 'Total Orders',
     value: '1,384',
-    sub: 'this month',
-    change: '+4.1%',
-    up: true,
-    data: [14,17,19,18,24,27,29,26,31,34,32,37],
-    color: '#3d8b68',
+    change: '5.7%',
+    positive: true,
+    description: 'vs. previous month',
+    data: [25, 32, 28, 40, 35, 44, 42, 52, 48, 58, 55, 65],
   },
   {
     title: 'Bounce Rate',
     value: '23.4%',
-    sub: 'page visits',
-    change: '-2.8%',
-    up: false,
-    data: [44,41,39,37,34,32,29,27,24,26,23,22],
-    color: '#b97a2c',
+    change: '2.1%',
+    positive: false,
+    description: 'vs. previous month',
+    data: [65, 60, 64, 55, 58, 52, 48, 50, 44, 42, 40, 38],
   },
 ];
 
-const BAR_DATA = [
-  { label: 'Jan', value: 4500 },
-  { label: 'Feb', value: 5200 },
-  { label: 'Mar', value: 4800 },
-  { label: 'Apr', value: 6100 },
-  { label: 'May', value: 5800 },
-  { label: 'Jun', value: 7200 },
-  { label: 'Jul', value: 6900 },
-  { label: 'Aug', value: 7800 },
-  { label: 'Sep', value: 8200 },
-  { label: 'Oct', value: 7500 },
-  { label: 'Nov', value: 8800 },
-  { label: 'Dec', value: 9200 },
+const REVENUE_DATA = [
+  { month: 'Jan', value: 28000 },
+  { month: 'Feb', value: 32000 },
+  { month: 'Mar', value: 29500 },
+  { month: 'Apr', value: 36000 },
+  { month: 'May', value: 33500 },
+  { month: 'Jun', value: 41000 },
+  { month: 'Jul', value: 38500 },
+  { month: 'Aug', value: 45000 },
+  { month: 'Sep', value: 42000 },
+  { month: 'Oct', value: 48000 },
+  { month: 'Nov', value: 45500 },
+  { month: 'Dec', value: 52000 },
 ];
 
 const TRAFFIC = [
-  { label: 'Organic Search', value: 4520, color: '#4f63d2' },
-  { label: 'Direct',         value: 2150, color: '#5b8ca8' },
-  { label: 'Referral',       value: 1340, color: '#3d8b68' },
-  { label: 'Social Media',   value:  890, color: '#b97a2c' },
+  {
+    name: 'Organic Search',
+    value: 51,
+  },
+  {
+    name: 'Direct',
+    value: 24,
+  },
+  {
+    name: 'Referral',
+    value: 15,
+  },
+  {
+    name: 'Social Media',
+    value: 10,
+  },
 ];
 
-const ACTIVITY = [
-  { id:1, name:'Sarah Miller',  act:'placed a new order',       amt:'$235.00',    time:'2m ago',  initials:'SM' },
-  { id:2, name:'James Wilson',  act:'updated their profile',    amt:null,         time:'8m ago',  initials:'JW' },
-  { id:3, name:'Emma Davis',    act:'completed payment',        amt:'$1,420.00',  time:'15m ago', initials:'ED' },
-  { id:4, name:'Michael Chen',  act:'submitted support ticket', amt:null,         time:'32m ago', initials:'MC' },
-  { id:5, name:'Olivia Brown',  act:'subscribed to Pro plan',   amt:'$49.99/mo',  time:'1h ago',  initials:'OB' },
-  { id:6, name:'Liam Johnson',  act:'cancelled subscription',   amt:null,         time:'2h ago',  initials:'LJ' },
+const ACTIVITIES: Activity[] = [
+  {
+    id: 1,
+    name: 'Sarah Miller',
+    action: 'placed a new order',
+    time: '2 minutes ago',
+    amount: '$249.00',
+    initials: 'SM',
+  },
+  {
+    id: 2,
+    name: 'James Wilson',
+    action: 'created an account',
+    time: '18 minutes ago',
+    initials: 'JW',
+  },
+  {
+    id: 3,
+    name: 'Emma Davis',
+    action: 'completed payment',
+    time: '42 minutes ago',
+    amount: '$189.00',
+    initials: 'ED',
+  },
+  {
+    id: 4,
+    name: 'Michael Chen',
+    action: 'placed a new order',
+    time: '1 hour ago',
+    amount: '$420.00',
+    initials: 'MC',
+  },
+  {
+    id: 5,
+    name: 'Olivia Brown',
+    action: 'created an account',
+    time: '2 hours ago',
+    initials: 'OB',
+  },
 ];
 
-const PRODUCTS = [
-  { name:'Premium Widget Pro', sales:2840, revenue:'$42,600', trend:'+18%' },
-  { name:'Starter Pack Basic', sales:1920, revenue:'$19,200', trend:'+12%' },
-  { name:'Enterprise Suite',   sales:1150, revenue:'$57,500', trend:'+24%' },
-  { name:'Mobile Addon',       sales: 980, revenue:' $9,800', trend: '+6%' },
-  { name:'API Access Key',     sales: 740, revenue:'$14,800', trend: '+9%' },
+const PRODUCTS: Product[] = [
+  {
+    name: 'Premium Widget Pro',
+    category: 'Software',
+    sales: 482,
+    revenue: '$18,940',
+    trend: 12.5,
+  },
+  {
+    name: 'Starter Pack Basic',
+    category: 'Software',
+    sales: 365,
+    revenue: '$9,125',
+    trend: 8.4,
+  },
+  {
+    name: 'Enterprise Suite',
+    category: 'Enterprise',
+    sales: 218,
+    revenue: '$8,720',
+    trend: 6.2,
+  },
+  {
+    name: 'Mobile Addon',
+    category: 'Add-on',
+    sales: 194,
+    revenue: '$5,432',
+    trend: 4.8,
+  },
 ];
 
-/* ─────────────── Page ──────────────────────── */
-export default function DashboardPage() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => { setReady(true); }, []);
-  if (!ready) return null;
+/* =========================
+   ICONS
+========================= */
 
-  const now   = new Date();
-  const h     = now.getHours();
-  const greet = h < 12 ? 'Selamat Pagi' : h < 17 ? 'Selamat Siang' : 'Selamat Malam';
-  const dateStr = now.toLocaleDateString('id-ID', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
+function ArrowUpRight() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 17L17 7" />
+      <path d="M7 7h10v10" />
+    </svg>
+  );
+}
+
+function ArrowDownRight() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 7l10 10" />
+      <path d="M17 7v10H7" />
+    </svg>
+  );
+}
+
+function RevenueIcon() {
+  return (
+    <svg
+      width="21"
+      height="21"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 3v18h18" />
+      <path d="M7 16l4-5 3 3 5-7" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg
+      width="21"
+      height="21"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function CartIcon() {
+  return (
+    <svg
+      width="21"
+      height="21"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="9" cy="20" r="1" />
+      <circle cx="18" cy="20" r="1" />
+      <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.5L21 8H6" />
+    </svg>
+  );
+}
+
+function ActivityIcon() {
+  return (
+    <svg
+      width="21"
+      height="21"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </svg>
+  );
+}
+
+/* =========================
+   SPARKLINE
+========================= */
+
+function Sparkline({
+  data,
+  positive,
+}: {
+  data: number[];
+  positive: boolean;
+}) {
+  const width = 110;
+  const height = 42;
+  const padding = 4;
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+
+  const points = data
+    .map((value, index) => {
+      const x =
+        padding +
+        (index / (data.length - 1)) * (width - padding * 2);
+
+      const normalized =
+        max === min ? 0.5 : (value - min) / (max - min);
+
+      const y =
+        height -
+        padding -
+        normalized * (height - padding * 2);
+
+      return `${x},${y}`;
+    })
+    .join(' ');
 
   return (
-    <div className="space-y-5">
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className={`sparkline ${positive ? 'positive' : 'negative'}`}
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
-      {/* ── Page header ─────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-up">
-        <div>
-          <h1 className="text-[18px] font-semibold text-foreground">{greet} 👋</h1>
-          <p className="text-[13px] text-muted mt-0.5">
-            Berikut ringkasan bisnis Anda hari ini.
-          </p>
+/* =========================
+   STAT CARD
+========================= */
+
+function StatCard({
+  stat,
+  index,
+}: {
+  stat: Stat;
+  index: number;
+}) {
+  const icons = [
+    <RevenueIcon key="revenue" />,
+    <UsersIcon key="users" />,
+    <CartIcon key="cart" />,
+    <ActivityIcon key="activity" />,
+  ];
+
+  return (
+    <div className="stat-card">
+      <div className="stat-top">
+        <div className={`stat-icon stat-icon-${index}`}>
+          {icons[index]}
         </div>
-        <span className="self-start sm:self-auto text-[12px] text-muted/60 bg-white border border-border
-                         rounded-lg px-3 py-1.5 whitespace-nowrap">
-          {dateStr}
-        </span>
+
+        <button className="icon-button" aria-label="More options">
+          <MoreIcon />
+        </button>
       </div>
 
-      {/* ── Stat cards ──────────────────────────── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {STATS.map((s, i) => (
-          <div
-            key={i}
-            className={`bg-white border border-border rounded-xl p-4
-                        hover:shadow-sm transition-shadow duration-200 group
-                        animate-fade-up s${i + 1}`}
-            style={{ opacity: 0 }}
-          >
-            {/* top row */}
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                   style={{ backgroundColor: `${s.color}14` }}>
-                <StatIcon color={s.color} />
-              </div>
-              <span
-                className="text-[11px] font-medium rounded-md px-1.5 py-0.5"
-                style={{
-                  color: s.up ? '#3d8b68' : '#b84040',
-                  backgroundColor: s.up ? '#3d8b6810' : '#b8404010',
-                }}
-              >
-                {s.change}
-              </span>
-            </div>
+      <div className="stat-content">
+        <p className="stat-title">{stat.title}</p>
 
-            {/* value */}
-            <p className="text-[20px] font-semibold text-foreground leading-none mb-0.5">
-              {s.value}
-            </p>
-            <p className="text-[11.5px] text-muted/60">{s.title}</p>
+        <div className="stat-value">{stat.value}</div>
 
-            {/* sparkline */}
-            <div className="mt-3 opacity-40 group-hover:opacity-70 transition-opacity duration-300">
-              <Sparkline data={s.data} color={s.color} />
-            </div>
+        <div className="stat-bottom">
+          <div className="stat-change">
+            <span
+              className={
+                stat.positive
+                  ? 'change-positive'
+                  : 'change-negative'
+              }
+            >
+              {stat.positive ? (
+                <ArrowUpRight />
+              ) : (
+                <ArrowDownRight />
+              )}
+
+              {stat.change}
+            </span>
+
+            <span className="stat-description">
+              {stat.description}
+            </span>
           </div>
-        ))}
-      </div>
 
-      {/* ── Charts row ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
-
-        {/* Revenue bar */}
-        <div className="bg-white border border-border rounded-xl p-5 animate-fade-up s5" style={{ opacity: 0 }}>
-          <div className="flex items-start justify-between mb-5">
-            <div>
-              <h2 className="text-[13px] font-semibold text-foreground">Revenue Overview</h2>
-              <p className="text-[11px] text-muted/50 mt-0.5">Total pendapatan per bulan · 2026</p>
-            </div>
-            {/* toggle pill */}
-            <div className="flex items-center gap-px bg-background border border-border rounded-md p-0.5">
-              {['Bulanan','Mingguan'].map((t, i) => (
-                <button key={t}
-                  className={`text-[11px] px-2.5 py-1 rounded transition-colors duration-100
-                    ${i === 0
-                      ? 'bg-white text-foreground/80 font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-border/40'
-                      : 'text-muted hover:text-foreground'
-                    }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          <BarChart data={BAR_DATA} />
-          {/* Y-axis hint */}
-          <div className="flex justify-between mt-1 px-0.5">
-            {['$0','$3k','$6k','$9k'].map(l => (
-              <span key={l} className="text-[9px] text-muted/35 font-medium">{l}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* Traffic donut */}
-        <div className="bg-white border border-border rounded-xl p-5 animate-fade-up s6" style={{ opacity: 0 }}>
-          <h2 className="text-[13px] font-semibold text-foreground mb-1">Sumber Traffic</h2>
-          <p className="text-[11px] text-muted/50 mb-5">Asal pengunjung Anda</p>
-          <DonutChart items={TRAFFIC} />
+          <Sparkline
+            data={stat.data}
+            positive={stat.positive}
+          />
         </div>
       </div>
-
-      {/* ── Bottom row ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-        {/* Recent activity */}
-        <div className="bg-white border border-border rounded-xl p-5 animate-fade-up s5" style={{ opacity: 0 }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[13px] font-semibold text-foreground">Aktivitas Terkini</h2>
-            <button className="text-[11px] text-primary hover:text-primary-hover font-medium transition-colors">
-              Lihat semua
-            </button>
-          </div>
-
-          <ul>
-            {ACTIVITY.map(a => (
-              <li key={a.id}
-                  className="flex items-center gap-3 py-2.5 border-b border-border/40 last:border-0">
-                {/* avatar */}
-                <div className="w-7 h-7 rounded-md bg-primary/6 flex items-center justify-center
-                                text-[10px] font-semibold text-primary/60 shrink-0">
-                  {a.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] leading-snug">
-                    <span className="font-medium text-foreground">{a.name}</span>
-                    {' '}
-                    <span className="text-muted">{a.act}</span>
-                  </p>
-                  <p className="text-[11px] text-muted/45 mt-0.5">{a.time}</p>
-                </div>
-                {a.amt && (
-                  <span className="text-[13px] font-medium text-foreground/65 tabular-nums shrink-0">
-                    {a.amt}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Top products */}
-        <div className="bg-white border border-border rounded-xl p-5 animate-fade-up s6" style={{ opacity: 0 }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[13px] font-semibold text-foreground">Produk Terlaris</h2>
-            <button className="text-[11px] text-primary hover:text-primary-hover font-medium transition-colors">
-              Lihat semua
-            </button>
-          </div>
-
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border/60">
-                {['Produk','Terjual','Pendapatan','Tren'].map((h, i) => (
-                  <th key={h}
-                    className={`pb-2 text-[11px] font-medium text-muted/55
-                                ${i === 0 ? 'text-left' : 'text-right'}`}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PRODUCTS.map((p, i) => (
-                <tr key={i} className="border-b border-border/20 last:border-0
-                                      hover:bg-surface-hover/60 transition-colors">
-                  <td className="py-2.5 text-[13px] font-medium text-foreground pr-2">{p.name}</td>
-                  <td className="py-2.5 text-[12px] text-right text-muted tabular-nums">
-                    {p.sales.toLocaleString()}
-                  </td>
-                  <td className="py-2.5 text-[13px] text-right text-foreground/70 tabular-nums font-medium">
-                    {p.revenue}
-                  </td>
-                  <td className="py-2.5 text-right">
-                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded
-                                     text-success bg-success/8">
-                      {p.trend}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
     </div>
   );
 }
 
-/* ─── Small stat icon (single shape, adapts color) ─── */
-function StatIcon({ color }: { color: string }) {
+/* =========================
+   REVENUE CHART
+========================= */
+
+function RevenueChart() {
+  const maxValue = Math.max(
+    ...REVENUE_DATA.map((item) => item.value)
+  );
+
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-         stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-      <polyline points="16 7 22 7 22 13" />
-    </svg>
+    <div className="chart-card revenue-card">
+      <div className="card-header">
+        <div>
+          <h3>Revenue Overview</h3>
+          <p>Monthly revenue performance</p>
+        </div>
+
+        <button className="more-button" aria-label="More options">
+          <MoreIcon />
+        </button>
+      </div>
+
+      <div className="revenue-total">
+        <span>$48,295</span>
+        <div className="revenue-growth">
+          <ArrowUpRight />
+          12.5%
+        </div>
+      </div>
+
+      <div className="chart-area">
+        <div className="y-axis">
+          <span>$60K</span>
+          <span>$45K</span>
+          <span>$30K</span>
+          <span>$15K</span>
+          <span>$0</span>
+        </div>
+
+        <div className="bars-container">
+          <div className="grid-lines">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+
+          <div className="bars">
+            {REVENUE_DATA.map((item) => {
+              const height =
+                (item.value / maxValue) * 100;
+
+              return (
+                <div
+                  className="bar-wrapper"
+                  key={item.month}
+                >
+                  <div
+                    className="bar"
+                    style={{
+                      height: `${height}%`,
+                    }}
+                    title={`${item.month}: $${item.value.toLocaleString()}`}
+                  />
+
+                  <span className="bar-label">
+                    {item.month}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   TRAFFIC CHART
+========================= */
+
+function TrafficChart() {
+  return (
+    <div className="chart-card traffic-card">
+      <div className="card-header">
+        <div>
+          <h3>Traffic Sources</h3>
+          <p>Where your visitors come from</p>
+        </div>
+
+        <button className="more-button" aria-label="More options">
+          <MoreIcon />
+        </button>
+      </div>
+
+      <div className="traffic-content">
+        <div className="donut-wrapper">
+          <div className="donut">
+            <div className="donut-center">
+              <strong>24.8K</strong>
+              <span>Visitors</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="traffic-list">
+          {TRAFFIC.map((item, index) => (
+            <div className="traffic-item" key={item.name}>
+              <div className="traffic-item-top">
+                <div className="traffic-name">
+                  <span
+                    className={`traffic-dot traffic-dot-${index}`}
+                  />
+
+                  {item.name}
+                </div>
+
+                <strong>{item.value}%</strong>
+              </div>
+
+              <div className="traffic-progress">
+                <div
+                  className={`traffic-progress-fill traffic-fill-${index}`}
+                  style={{
+                    width: `${item.value}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   ACTIVITY
+========================= */
+
+function RecentActivity() {
+  return (
+    <div className="content-card">
+      <div className="card-header">
+        <div>
+          <h3>Recent Activity</h3>
+          <p>Latest activity from your users</p>
+        </div>
+
+        <button className="view-all-button">
+          View all
+          <ArrowUpRight />
+        </button>
+      </div>
+
+      <div className="activity-list">
+        {ACTIVITIES.map((activity) => (
+          <div
+            className="activity-item"
+            key={activity.id}
+          >
+            <div className="activity-avatar">
+              {activity.initials}
+            </div>
+
+            <div className="activity-info">
+              <p>
+                <strong>{activity.name}</strong>{' '}
+                {activity.action}
+              </p>
+
+              <span>{activity.time}</span>
+            </div>
+
+            {activity.amount && (
+              <div className="activity-amount">
+                {activity.amount}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   PRODUCTS
+========================= */
+
+function TopProducts() {
+  return (
+    <div className="content-card">
+      <div className="card-header">
+        <div>
+          <h3>Top Products</h3>
+          <p>Best performing products</p>
+        </div>
+
+        <button className="more-button" aria-label="More options">
+          <MoreIcon />
+        </button>
+      </div>
+
+      <div className="products-list">
+        {PRODUCTS.map((product, index) => (
+          <div
+            className="product-item"
+            key={product.name}
+          >
+            <div className="product-number">
+              {String(index + 1).padStart(2, '0')}
+            </div>
+
+            <div className="product-info">
+              <strong>{product.name}</strong>
+              <span>{product.category}</span>
+            </div>
+
+            <div className="product-sales">
+              <strong>{product.sales}</strong>
+              <span>sales</span>
+            </div>
+
+            <div className="product-revenue">
+              <strong>{product.revenue}</strong>
+
+              <span>
+                <ArrowUpRight />
+                {product.trend}%
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   MAIN DASHBOARD
+========================= */
+
+export default function DashboardPage() {
+  const [ready, setReady] = useState(false);
+  const [period, setPeriod] = useState<
+    'Monthly' | 'Weekly'
+  >('Monthly');
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
+  const currentHour = new Date().getHours();
+
+  let greeting = 'Good evening';
+
+  if (currentHour < 12) {
+    greeting = 'Good morning';
+  } else if (currentHour < 18) {
+    greeting = 'Good afternoon';
+  }
+
+  const today = new Date().toLocaleDateString(
+    'id-ID',
+    {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }
+  );
+
+  if (!ready) {
+    return (
+      <div className="dashboard-loading">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  return (
+    <main className="dashboard-page">
+      {/* =========================
+          PAGE HEADER
+      ========================= */}
+
+      <section className="dashboard-header">
+        <div>
+          <div className="header-eyebrow">
+            Dashboard
+          </div>
+
+          <h1>
+            {greeting}, Miquel <span>👋</span>
+          </h1>
+
+          <p>
+            Here&apos;s what&apos;s happening with your
+            workspace today.
+          </p>
+        </div>
+
+        <div className="header-actions">
+          <div className="date-badge">
+            <CalendarIcon />
+            <span>{today}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================
+          STATS
+      ========================= */}
+
+      <section className="stats-grid">
+        {STATS.map((stat, index) => (
+          <StatCard
+            key={stat.title}
+            stat={stat}
+            index={index}
+          />
+        ))}
+      </section>
+
+      {/* =========================
+          CHARTS
+      ========================= */}
+
+      <section className="charts-grid">
+        <RevenueChart />
+
+        <TrafficChart />
+      </section>
+
+      {/* =========================
+          LOWER CONTENT HEADER
+      ========================= */}
+
+      <section className="section-heading">
+        <div>
+          <h2>Performance</h2>
+          <p>
+            Keep track of your latest activities and
+            performance.
+          </p>
+        </div>
+
+        <div className="period-switcher">
+          <button
+            className={
+              period === 'Weekly'
+                ? 'period-active'
+                : ''
+            }
+            onClick={() => setPeriod('Weekly')}
+          >
+            Weekly
+          </button>
+
+          <button
+            className={
+              period === 'Monthly'
+                ? 'period-active'
+                : ''
+            }
+            onClick={() => setPeriod('Monthly')}
+          >
+            Monthly
+          </button>
+        </div>
+      </section>
+
+      {/* =========================
+          ACTIVITY + PRODUCTS
+      ========================= */}
+
+      <section className="bottom-grid">
+        <RecentActivity />
+
+        <TopProducts />
+      </section>
+
+          </main>
   );
 }

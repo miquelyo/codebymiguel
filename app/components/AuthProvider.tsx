@@ -78,12 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string): Promise<boolean> => {
-      
+      // Trim whitespace untuk menghindari masalah spasi tersembunyi
+      const trimmedEmail    = email.trim();
+      const trimmedPassword = password.trim();
+
       // Jika kredensial supabase belum diisi (masih bawaan dari .env.local template)
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-url')) {
         await new Promise(r => setTimeout(r, 1000));
 
-        if (email === 'admin@admin.com' && password === 'admin123') {
+        if (trimmedEmail === 'admin@admin.com' && trimmedPassword === 'admin123') {
           setCookie('admin_session', JSON.stringify(DEMO_USER), 7);
           setUser(DEMO_USER);
           router.replace('/dashboard');
@@ -94,21 +97,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Supabase Auth (Menggunakan Authentication Email bawaan)
       try {
+        console.log('[Auth] Mencoba login dengan Supabase untuk:', trimmedEmail);
+        console.log('[Auth] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+
         const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
+          email:    trimmedEmail,
+          password: trimmedPassword,
         });
 
-        if (error || !data.user) {
-          console.error("Login Error:", error?.message || "Kredensial salah");
+        if (error) {
+          console.error('[Auth] Supabase error detail:', {
+            message: error.message,
+            status:  error.status,
+            name:    error.name,
+          });
           return false;
         }
 
+        if (!data.user) {
+          console.error('[Auth] Login gagal: data.user null meski tidak ada error');
+          return false;
+        }
+
+        console.log('[Auth] Login berhasil, user:', data.user.id);
+
         const loggedInUser: User = {
-          email: data.user.email || email,
-          name: data.user.user_metadata?.name || email.split('@')[0],
-          avatar: email.charAt(0).toUpperCase(),
-          role: 'Admin', // Atur role default
+          email:  data.user.email || trimmedEmail,
+          name:   data.user.user_metadata?.name || trimmedEmail.split('@')[0],
+          avatar: trimmedEmail.charAt(0).toUpperCase(),
+          role:   'Admin',
         };
 
         setCookie('admin_session', JSON.stringify(loggedInUser), 7);
@@ -116,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace('/dashboard');
         return true;
       } catch (err) {
-        console.error("Supabase Error:", err);
+        console.error('[Auth] Exception tidak terduga:', err);
         return false;
       }
     },

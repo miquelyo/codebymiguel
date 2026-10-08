@@ -3,8 +3,8 @@ import "./globals.css";
 import { AuthProvider } from "@/app/components/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "AdminPanel — Dashboard",
-  description: "Modern admin dashboard untuk kelola bisnis Anda.",
+  title: "CodebyMiguel — Dashboard",
+  description: "Dashboard admin modern untuk kelola bisnis Anda dengan mudah.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -15,7 +15,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
           rel="stylesheet"
         />
       </head>

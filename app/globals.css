@@ -1,68 +1,153 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
+  --color-background:    var(--background);
+  --color-foreground:    var(--foreground);
+  --color-primary:       var(--primary);
   --color-primary-hover: var(--primary-hover);
-  --color-surface: var(--surface);
+  --color-surface:       var(--surface);
   --color-surface-hover: var(--surface-hover);
-  --color-border: var(--border-color);
-  --color-muted: var(--muted);
-  --color-card: var(--card);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-border:        var(--border-color);
+  --color-muted:         var(--muted);
+  --color-card:          var(--card);
+  --color-success:       var(--success);
+  --color-warning:       var(--warning);
+  --color-danger:        var(--danger);
+  --color-info:          var(--info);
+
+  /* Font families exposed to Tailwind */
+  --font-sans:    'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --background:    #f5f6f8;
-  --foreground:    #111827;
-  --primary:       #4f63d2;
-  --primary-hover: #3d50c0;
+  --background:    #fafafa;
+  --foreground:    #000000;
+  --primary:       #000000;
+  --primary-hover: #333333;
   --surface:       #ffffff;
-  --surface-hover: #f0f2f5;
-  --border-color:  #e5e7eb;
-  --muted:         #6b7280;
+  --surface-hover: #f4f4f5;
+  --border-color:  #e4e4e7;
+  --muted:         #71717a;
   --card:          #ffffff;
-  --success:       #3d8b68;
-  --warning:       #b97a2c;
-  --danger:        #b84040;
+  --success:       #10b981; /* green */
+  --warning:       #f59e0b; /* orange */
+  --danger:        #ef4444; /* red */
+  --info:          #3b82f6; /* blue */
+
+  --accent:        #3f3f46;
+  --accent-hover:  #27272a;
+
+  /* Typography variables */
+  --font-body:    'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #000000 0%, #333333 100%);
+  --gradient-card:    linear-gradient(145deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.01) 100%);
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
 }
+
+/* ── Dark mode ──────────────────────────────────────────────── */
+html.dark {
+  --background:    #000000;
+  --foreground:    #ffffff;
+  --primary:       #ffffff;
+  --primary-hover: #cccccc;
+  --surface:       #0a0a0a;
+  --surface-hover: #171717;
+  --border-color:  #27272a;
+  --muted:         #a1a1aa;
+  --card:          #09090b;
+  --success:       #34d399;
+  --warning:       #fbbf24;
+  --danger:        #f87171;
+  --info:          #60a5fa;
+
+  --accent:        #a1a1aa;
+  --accent-hover:  #d4d4d8;
+
+  --gradient-primary: linear-gradient(135deg, #ffffff 0%, #cccccc 100%);
+  --gradient-card:    linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  --gradient-sidebar: linear-gradient(180deg, #09090b 0%, #000000 100%);
+}
+
 
 * { box-sizing: border-box; }
 
+/* ── Base typography ──────────────────────────────────────── */
 html {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: var(--font-body);
+  font-size: 0.9375rem; /* 15px */
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
-/* Scrollbar */
+/* Headings → Space Grotesk (display) */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.04em; }
+h2 { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.03em; }
+h3 { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.025em; }
+h4 { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.015em; }
+
+/* Labels & captions */
+label, caption {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+/* Numeric / tabular data → tabular nums for alignment */
+.tabular, td, th {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small utility — display font on demand */
+.font-display { font-family: var(--font-heading); }
+
+/* ── Scrollbar ──────────────────────────────────────────── */
 ::-webkit-scrollbar        { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track  { background: transparent; }
 ::-webkit-scrollbar-thumb  { background: var(--border-color); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-/* Keyframes */
+/* ── Keyframes ──────────────────────────────────────────── */
 @keyframes fadeSlideUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes barGrow {
   from { transform: scaleY(0); transform-origin: bottom; }
   to   { transform: scaleY(1); transform-origin: bottom; }
 }
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-6px); }
+}
 
-/* Utility classes */
-.animate-fade-up { animation: fadeSlideUp 0.4s ease-out forwards; }
-.animate-bar     { animation: barGrow 0.55s ease-out forwards; }
+/* ── Utility classes ────────────────────────────────────── */
+.animate-fade-up  { animation: fadeSlideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.animate-bar      { animation: barGrow 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.animate-float    { animation: float 4s ease-in-out infinite; }
 
 .s1 { animation-delay: 0.05s; }
 .s2 { animation-delay: 0.10s; }
@@ -70,3 +155,43 @@ body {
 .s4 { animation-delay: 0.20s; }
 .s5 { animation-delay: 0.25s; }
 .s6 { animation-delay: 0.30s; }
+.s7 { animation-delay: 0.35s; }
+
+/* Glass effect */
+.glass {
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+html.dark .glass {
+  background: rgba(10,10,10,0.8);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Card with glow */
+.card-glow {
+  position: relative;
+}
+.card-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: var(--gradient-primary);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: -1;
+}
+.card-glow:hover::before {
+  opacity: 0.1;
+}
+
+/* Gradient text */
+.text-gradient {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
