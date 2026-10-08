@@ -3,9 +3,12 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/app/components/AuthProvider';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const { login, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const isIdleTimeout = searchParams.get('reason') === 'idle';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -354,6 +357,17 @@ export default function LoginPage() {
                   </p>
                 </motion.div>
 
+                {isIdleTimeout && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm"
+                  >
+                    <span className="text-lg leading-none">⏰</span>
+                    <p>Sesi Anda telah berakhir karena tidak aktif selama 15 menit. Silakan login kembali.</p>
+                  </motion.div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-5">
 
                   {/* Email */}
@@ -366,7 +380,7 @@ export default function LoginPage() {
                       htmlFor="email"
                       className="block text-[13px] font-medium text-gray-700 mb-2"
                     >
-                      Email
+                      Email atau Username
                     </label>
 
                     <div className="relative group">
@@ -382,10 +396,10 @@ export default function LoginPage() {
 
                       <input
                         id="email"
-                        type="email"
+                        type="text"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
+                        placeholder="you@example.com / username"
                         required
                         autoComplete="email"
                         className="

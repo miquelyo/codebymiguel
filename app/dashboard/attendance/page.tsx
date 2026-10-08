@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
+import FaceScanner from '@/app/components/FaceScanner';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -12,6 +13,8 @@ interface AttendanceRecord {
   date: string;
   check_in: string | null;
   check_out: string | null;
+  check_in_image: string | null;
+  check_out_image: string | null;
   checkout_target: string | null;
   status: 'on_time' | 'late' | null;
   check_in_latitude: number | null;
@@ -217,6 +220,7 @@ export default function AttendancePage() {
 
   const [isLoadingToday, setIsLoadingToday] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scannerMode, setScannerMode] = useState<'in' | 'out' | null>(null);
 
   const [locationInfo, setLocationInfo] =
     useState<LocationInfo | null>(null);
@@ -378,7 +382,7 @@ export default function AttendancePage() {
 
   // ─── Check-in ─────────────────────────────────────────────────
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = async (imageBase64?: string) => {
     if (!user || !now) return;
 
     if (!locationInfo) {
@@ -405,16 +409,15 @@ export default function AttendancePage() {
       return;
     }
 
-    if (totalMin > 10 * 60 + 30) {
+    if (totalMin > 8 * 60 + 30) {
       showToast(
-        'Check-in sudah ditutup. Maksimal 10:30.',
+        'Check-in sudah ditutup. Maksimal 08:30.',
         'error'
       );
       return;
     }
 
-    const status: 'on_time' | 'late' =
-      totalMin > 8 * 60 + 30 ? 'late' : 'on_time';
+    const status: 'on_time' | 'late' = 'on_time';
 
     setIsSubmitting(true);
 
@@ -434,6 +437,7 @@ export default function AttendancePage() {
         check_in_location: locationInfo.location,
         check_in_timezone: locationInfo.timezone,
         check_in_timezone_label: locationInfo.timezoneLabel,
+        check_in_image: imageBase64 || null,
       });
 
     setIsSubmitting(false);
@@ -444,10 +448,8 @@ export default function AttendancePage() {
     }
 
     showToast(
-      status === 'late'
-        ? `Check-in berhasil — terlambat. ${locationInfo.timezoneLabel}`
-        : `Check-in berhasil — ${locationInfo.location}`,
-      status === 'late' ? 'warn' : 'success'
+      `Check-in berhasil — ${locationInfo.location}`,
+      'success'
     );
 
     fetchData();
@@ -455,7 +457,7 @@ export default function AttendancePage() {
 
   // ─── Check-out ────────────────────────────────────────────────
 
-  const handleCheckOut = async () => {
+  const handleCheckOut = async (imageBase64?: string) => {
     if (!user || !now || !today?.id) return;
 
     setIsSubmitting(true);
@@ -464,6 +466,7 @@ export default function AttendancePage() {
       .from('attendance')
       .update({
         check_out: now.toISOString(),
+        check_out_image: imageBase64 || null,
       })
       .eq('id', today.id);
 
@@ -526,8 +529,7 @@ export default function AttendancePage() {
     !!checkoutTargetDate &&
     now >= checkoutTargetDate;
 
-  const isClosed =
-    !checkedIn && totalMin > 10 * 60 + 30;
+  const isClosed = !checkedIn && totalMin > 8 * 60 + 30;
 
   const dayLabel = now.toLocaleDateString('id-ID', {
     weekday: 'long',
@@ -868,12 +870,8 @@ export default function AttendancePage() {
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     whileHover={{ y: -1 }}
-                    onClick={handleCheckIn}
-                    disabled={
-                      isSubmitting ||
-                      isWeekend ||
-                      totalMin < 5 * 60
-                    }
+                    onClick={() => setScannerMode('in')}
+                    disabled={isSubmitting}
                     className="
                       flex w-full items-center justify-center gap-2
                       rounded-2xl
@@ -1038,7 +1036,7 @@ export default function AttendancePage() {
                     <motion.button
                       whileTap={{ scale: 0.98 }}
                       whileHover={{ y: -1 }}
-                      onClick={handleCheckOut}
+                      onClick={() => setScannerMode('out')}
                       disabled={isSubmitting}
                       className="
                         flex w-full items-center justify-center gap-2
@@ -1267,27 +1265,41 @@ export default function AttendancePage() {
                             year: 'numeric',
                           })}
                         </p>
+                        
+                        {row.check_in_latitude && row.check_in_longitude && (
+                           <p className="mt-2 text-[10px] text-muted">
+                             📍 {row.check_in_latitude.toFixed(5)}, {row.check_in_longitude.toFixed(5)}
+                           </p>
+                        )}
                       </div>
                     </td>
 
                     <td className="px-4 py-4 text-center">
-                      <span className="font-bold tabular text-foreground">
-                        {fmtTime(
-                          row.check_in,
-                          row.check_in_timezone ||
-                            activeTimezone
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="font-bold tabular text-foreground">
+                          {fmtTime(
+                            row.check_in,
+                            row.check_in_timezone || activeTimezone
+                          )}
+                        </span>
+                        {row.check_in_image && (
+                          <img src={row.check_in_image} alt="Check In Face" className="w-10 h-10 rounded-full object-cover border border-border" />
                         )}
-                      </span>
+                      </div>
                     </td>
 
                     <td className="px-4 py-4 text-center">
-                      <span className="font-bold tabular text-foreground">
-                        {fmtTime(
-                          row.check_out,
-                          row.check_in_timezone ||
-                            activeTimezone
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="font-bold tabular text-foreground">
+                          {fmtTime(
+                            row.check_out,
+                            row.check_in_timezone || activeTimezone
+                          )}
+                        </span>
+                        {row.check_out_image && (
+                          <img src={row.check_out_image} alt="Check Out Face" className="w-10 h-10 rounded-full object-cover border border-border" />
                         )}
-                      </span>
+                      </div>
                     </td>
 
                     <td className="px-6 py-4 text-right">
@@ -1349,6 +1361,12 @@ export default function AttendancePage() {
                         year: 'numeric',
                       })}
                     </p>
+                    
+                    {row.check_in_latitude && row.check_in_longitude && (
+                       <p className="mt-1 text-[10px] text-muted">
+                         📍 {row.check_in_latitude.toFixed(5)}, {row.check_in_longitude.toFixed(5)}
+                       </p>
+                    )}
                   </div>
 
                   <AttendanceStatus
@@ -1358,31 +1376,37 @@ export default function AttendancePage() {
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-surface px-3.5 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted mb-2">
                       Check In
                     </p>
-
-                    <p className="mt-1 font-bold tabular text-foreground">
-                      {fmtTime(
-                        row.check_in,
-                        row.check_in_timezone ||
-                          activeTimezone
+                    <div className="flex items-center gap-3">
+                      {row.check_in_image && (
+                        <img src={row.check_in_image} alt="In" className="w-8 h-8 rounded-full object-cover" />
                       )}
-                    </p>
+                      <p className="font-bold tabular text-foreground">
+                        {fmtTime(
+                          row.check_in,
+                          row.check_in_timezone || activeTimezone
+                        )}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="rounded-xl bg-surface px-3.5 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted mb-2">
                       Check Out
                     </p>
-
-                    <p className="mt-1 font-bold tabular text-foreground">
-                      {fmtTime(
-                        row.check_out,
-                        row.check_in_timezone ||
-                          activeTimezone
+                    <div className="flex items-center gap-3">
+                      {row.check_out_image && (
+                        <img src={row.check_out_image} alt="Out" className="w-8 h-8 rounded-full object-cover" />
                       )}
-                    </p>
+                      <p className="font-bold tabular text-foreground">
+                        {fmtTime(
+                          row.check_out,
+                          row.check_in_timezone || activeTimezone
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -1390,6 +1414,21 @@ export default function AttendancePage() {
           )}
         </div>
       </motion.div>
+      {scannerMode && (
+        <FaceScanner
+          onCancel={() => setScannerMode(null)}
+          onFaceDetected={async (descriptor, imageBase64) => {
+            const currentMode = scannerMode;
+            setScannerMode(null);
+            
+            if (currentMode === 'in') {
+              await handleCheckIn(imageBase64);
+            } else if (currentMode === 'out') {
+              await handleCheckOut(imageBase64);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

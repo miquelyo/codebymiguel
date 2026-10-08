@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,7 +22,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (usernameOrEmail: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -58,35 +59,73 @@ function getCookieValue(name: string): string | null {
 }
 // ────────────────────────────────────────────────────────────────
 
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]           = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router                    = useRouter();
+  const idleTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cek cookie saat pertama load
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      setUser(prev => {
+        if (prev) {
+          deleteCookie('admin_session');
+          deleteCookie('session_last_active');
+          window.location.href = '/login?reason=idle';
+        }
+        return null;
+      });
+    }, IDLE_TIMEOUT_MS);
+    document.cookie = `session_last_active=${Date.now()}; path=/; SameSite=Lax`;
+  }, []);
+
+  // Cek cookie saat pertama load, periksa apakah sesi idle terlalu lama
   useEffect(() => {
     const raw = getCookieValue('admin_session');
     if (raw) {
       try {
-        setUser(JSON.parse(raw));
+        const lastActive = getCookieValue('session_last_active');
+        const isIdle = lastActive && Date.now() - parseInt(lastActive) > IDLE_TIMEOUT_MS;
+        if (isIdle) {
+          deleteCookie('admin_session');
+          deleteCookie('session_last_active');
+        } else {
+          setUser(JSON.parse(raw));
+        }
       } catch {
         deleteCookie('admin_session');
       }
     }
     setIsLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Pasang idle timer saat user login
+  useEffect(() => {
+    if (!user) return;
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    const handleActivity = () => resetIdleTimer();
+    events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
+    resetIdleTimer();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, handleActivity));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [user, resetIdleTimer]);
+
   const login = useCallback(
-    async (email: string, password: string): Promise<boolean> => {
-      // Trim whitespace untuk menghindari masalah spasi tersembunyi
-      const trimmedEmail    = email.trim();
+    async (usernameOrEmail: string, password: string): Promise<boolean> => {
+      const trimmedInput    = usernameOrEmail.trim();
       const trimmedPassword = password.trim();
 
       // Jika kredensial supabase belum diisi (masih bawaan dari .env.local template)
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-url')) {
         await new Promise(r => setTimeout(r, 1000));
 
-        if (trimmedEmail === 'admin@admin.com' && trimmedPassword === 'admin123') {
+        if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com') && trimmedPassword === 'admin123') {
           setCookie('admin_session', JSON.stringify(DEMO_USER), 7);
           setUser(DEMO_USER);
           router.replace('/dashboard');
@@ -95,36 +134,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Supabase Auth (Menggunakan Authentication Email bawaan)
       try {
-        console.log('[Auth] Mencoba login dengan Supabase untuk:', trimmedEmail);
-        console.log('[Auth] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+        console.log('[Auth] Mencoba login dengan input:', trimmedInput);
+        
+        let emailToUse = trimmedInput;
+        // Check if input is a username (doesn't contain '@')
+        if (!trimmedInput.includes('@')) {
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('email')
+            .eq('username', trimmedInput)
+            .single();
+
+          if (userError || !userData) {
+            console.error('[Auth] Username tidak ditemukan:', userError?.message);
+            return false;
+          }
+          emailToUse = userData.email;
+        }
 
         const { data, error } = await supabase.auth.signInWithPassword({
-          email:    trimmedEmail,
+          email:    emailToUse,
           password: trimmedPassword,
         });
 
-        if (error) {
-          console.error('[Auth] Supabase error detail:', {
-            message: error.message,
-            status:  error.status,
-            name:    error.name,
-          });
-          return false;
-        }
-
-        if (!data.user) {
-          console.error('[Auth] Login gagal: data.user null meski tidak ada error');
+        if (error || !data.user) {
+          console.error('[Auth] Supabase error detail:', error?.message);
           return false;
         }
 
         console.log('[Auth] Login berhasil, user:', data.user.id);
 
         const loggedInUser: User = {
-          email:  data.user.email || trimmedEmail,
-          name:   data.user.user_metadata?.name || trimmedEmail.split('@')[0],
-          avatar: trimmedEmail.charAt(0).toUpperCase(),
+          email:  data.user.email || emailToUse,
+          name:   data.user.user_metadata?.name || trimmedInput,
+          avatar: trimmedInput.charAt(0).toUpperCase(),
           role:   'Admin',
         };
 
@@ -141,7 +185,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     deleteCookie('admin_session');
+    deleteCookie('session_last_active');
     setUser(null);
     router.replace('/login');
   }, [router]);

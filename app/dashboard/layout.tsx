@@ -157,31 +157,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* ── Sidebar ──────────────────────────────────────── */}
+      {/* Sidebar wrapper provides the sticky column that reserves space */}
+      <div className={`
+        hidden lg:block shrink-0 w-[268px]
+      `} />
       <aside
         className={`
-          fixed lg:sticky top-0 left-0 z-50 h-screen w-[240px]
-          border-r border-border flex flex-col bg-surface
+          fixed top-3 left-3 bottom-3 z-50 w-[248px]
+          flex flex-col bg-surface rounded-2xl sidebar-float
           transition-transform duration-300 ease-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-[110%] lg:translate-x-0'}
         `}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 h-[70px] px-5 border-b border-border/50 shrink-0">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-foreground">
-            <CodeIcon className="w-4.5 h-4.5 text-background" />
+        <div className="flex items-center gap-3 h-[68px] px-5 border-b border-border/50 shrink-0 rounded-t-2xl">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+               style={{ background: 'var(--gradient-primary)' }}>
+            <CodeIcon className="w-4.5 h-4.5 text-white" />
           </div>
           <div className="flex flex-col">
             <span className="text-[15px] font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.03em' }}>
               CodebyMiguel
             </span>
-            <span className="text-[10px] text-muted/50 font-medium" style={{ letterSpacing: '0.02em' }}>
+            <span className="text-[10px] text-muted/60 font-medium" style={{ letterSpacing: '0.02em' }}>
               Admin Dashboard
             </span>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 pt-6 pb-3">
+        <nav className="flex-1 overflow-y-auto px-3 pt-5 pb-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/40 px-3 mb-3">
             Menu Utama
           </p>
@@ -197,12 +202,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium
                       transition-all duration-200 group relative
                       ${active
-                        ? 'text-background bg-foreground'
+                        ? 'text-white shadow-sm'
                         : 'text-muted hover:text-foreground hover:bg-surface-hover'}
                     `}
+                    style={active ? { background: 'var(--gradient-primary)' } : {}}
                   >
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-200
-                      ${active ? 'text-background' : 'bg-transparent text-muted group-hover:text-foreground'}`}>
+                      ${active ? 'text-white/90' : 'bg-transparent text-muted group-hover:text-foreground'}`}>
                       <Icon className="w-4 h-4" />
                     </div>
                     <span>{label}</span>
@@ -214,21 +220,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* Sidebar bottom */}
-        <div className="px-4 py-4 border-t border-border/50 shrink-0">
+        <div className="px-4 py-4 border-t border-border/50 shrink-0 rounded-b-2xl">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-foreground animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <p className="text-[11px] text-muted/50">v1.0.0 · CodebyMiguel</p>
           </div>
         </div>
       </aside>
 
       {/* ── Main area ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
 
         {/* ══════════ TOPBAR ══════════ */}
-        <header className="sticky top-0 z-30 h-[70px] glass
-                           flex items-center justify-between px-4 lg:px-6 shrink-0 gap-4"
-                style={{ borderBottom: '1px solid var(--border-color)' }}>
+        <header className="sticky top-3 z-30 mx-3 rounded-2xl glass
+                           flex items-center justify-between px-4 lg:px-5 shrink-0 gap-4"
+                style={{ height: '62px' }}>
 
           {/* LEFT — mobile toggle + page breadcrumb */}
           <div className="flex items-center gap-3 min-w-0">
@@ -309,7 +315,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                            transition-all duration-200"
               >
                 <BellIcon className="w-[18px] h-[18px]" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-foreground border-2 border-card" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary border-2 border-card" />
               </button>
 
               {/* Notif dropdown */}
@@ -390,7 +396,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="px-4 py-4 border-b border-border"
                        style={{ background: 'var(--gradient-card)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold text-background bg-foreground shrink-0">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold text-white shrink-0"
+                           style={{ background: 'var(--gradient-primary)' }}>
                         {user.avatar}
                       </div>
                       <div className="min-w-0">
