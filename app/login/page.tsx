@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, Suspense, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+// Wrapped in Suspense below because useSearchParams() requires it for static prerendering
+function LoginContent() {
   const { login, isLoading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const isIdleTimeout = searchParams.get('reason') === 'idle';
