@@ -409,15 +409,15 @@ export default function AttendancePage() {
       return;
     }
 
-    if (totalMin > 8 * 60 + 30) {
+    if (totalMin > 10 * 60) {
       showToast(
-        'Check-in sudah ditutup. Maksimal 08:30.',
+        'Check-in sudah ditutup. Maksimal 10:00.',
         'error'
       );
       return;
     }
 
-    const status: 'on_time' | 'late' = 'on_time';
+    const status: 'on_time' | 'late' = totalMin > 8 * 60 + 30 ? 'late' : 'on_time';
 
     setIsSubmitting(true);
 
@@ -529,7 +529,7 @@ export default function AttendancePage() {
     !!checkoutTargetDate &&
     now >= checkoutTargetDate;
 
-  const isClosed = !checkedIn && totalMin > 8 * 60 + 30;
+  const isClosed = !checkedIn && totalMin > 10 * 60;
 
   const dayLabel = now.toLocaleDateString('id-ID', {
     weekday: 'long',
