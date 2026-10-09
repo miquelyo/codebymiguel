@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
+import toast from 'react-hot-toast';
+import ConfirmModal from '@/app/components/ConfirmModal';
 
 interface AIAgent {
   id: string;
@@ -85,6 +87,7 @@ export default function AITrackerPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Ticker untuk update UI countdown tiap menit
   const [, setTicker] = useState(0);
@@ -139,10 +142,11 @@ export default function AITrackerPage() {
       }).eq('id', editingId);
       
       if (error) {
-        alert('Gagal update: ' + error.message);
+        toast.error('Gagal update: ' + error.message);
         console.error(error);
         return;
       }
+      toast.success('Limit berhasil diperbarui!');
     } else {
       const { error } = await supabase.from('ai_agents').insert({
         user_email: user.email,
@@ -152,10 +156,11 @@ export default function AITrackerPage() {
       });
 
       if (error) {
-        alert('Gagal menyimpan: ' + error.message);
+        toast.error('Gagal menyimpan: ' + error.message);
         console.error(error);
         return;
       }
+      toast.success('Akun baru berhasil ditambahkan!');
     }
 
     setForm({ email_account: '', gemini_days: 0, gemini_hours: 0, claude_gpt_days: 0, claude_gpt_hours: 0 });
@@ -190,9 +195,15 @@ export default function AITrackerPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus akun ini?')) return;
-    await supabase.from('ai_agents').delete().eq('id', id);
+  const executeDelete = async () => {
+    if (!deleteId) return;
+    const { error } = await supabase.from('ai_agents').delete().eq('id', deleteId);
+    if(error) {
+      toast.error('Gagal menghapus akun AI!');
+    } else {
+      toast.success('Akun AI berhasil dihapus!');
+    }
+    setDeleteId(null);
     loadAgents();
   };
 
@@ -283,7 +294,7 @@ export default function AITrackerPage() {
                         <button onClick={() => handleEdit(ag)} className="p-1.5 text-muted hover:text-info hover:bg-info/10 rounded-lg transition-colors" title="Setel Ulang Waktu">
                           <EditIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(ag.id)} className="p-1.5 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors" title="Hapus Akun">
+                        <button onClick={() => setDeleteId(ag.id)} className="p-1.5 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors" title="Hapus Akun">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -399,6 +410,14 @@ export default function AITrackerPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        title="Hapus Akun AI"
+        message="Apakah Anda yakin ingin menghapus catatan akun ini? Anda akan kehilangan riwayat waktu tunggunya."
+        onCancel={() => setDeleteId(null)}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

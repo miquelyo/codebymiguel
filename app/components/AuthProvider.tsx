@@ -24,6 +24,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<boolean>;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -165,11 +166,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.log('[Auth] Login berhasil, user:', data.user.id);
 
+        let profileName = data.user.user_metadata?.name || trimmedInput;
+        let profileRole = 'User';
+        let profileAvatar = trimmedInput.charAt(0).toUpperCase();
+
+        const { data: profile } = await supabase.from('profiles').select('*').eq('email', emailToUse).single();
+        if (profile) {
+          profileName = profile.display_name || profileName;
+          profileRole = profile.role || profileRole;
+          profileAvatar = profile.avatar_url || profileAvatar;
+        }
+
         const loggedInUser: User = {
           email:  data.user.email || emailToUse,
-          name:   data.user.user_metadata?.name || trimmedInput,
-          avatar: trimmedInput.charAt(0).toUpperCase(),
-          role:   'Admin',
+          name:   profileName,
+          avatar: profileAvatar,
+          role:   profileRole,
         };
 
         setCookie('admin_session', JSON.stringify(loggedInUser), 7);
@@ -192,8 +204,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace('/login');
   }, [router]);
 
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      setCookie('admin_session', JSON.stringify(updated), 7);
+      return updated;
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/app/components/AuthProvider";
 import PwaRegister from "@/app/components/PwaRegister";
+import { Toaster } from "react-hot-toast";
 import type { Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="min-h-screen bg-background text-foreground">
+        <Toaster position="top-center" />
         <PwaRegister />
         <AuthProvider>{children}</AuthProvider>
       </body>

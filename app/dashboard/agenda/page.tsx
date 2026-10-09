@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
+import toast from 'react-hot-toast';
+import ConfirmModal from '@/app/components/ConfirmModal';
 
 interface EventData {
   id: string;
@@ -128,6 +130,7 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTab, setCurrentTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -179,19 +182,26 @@ export default function AgendaPage() {
     });
 
     if (error) {
-      alert('Gagal menyimpan: ' + error.message);
+      toast.error('Gagal menyimpan event: ' + error.message);
       console.error(error);
       return;
     }
 
+    toast.success('Event berhasil ditambahkan!');
     setForm({ title: '', description: '', event_date: '', is_recurring_yearly: false });
     setIsModalOpen(false);
     loadEvents();
   };
 
-  const handleDelete = async (id: string) => {
-    if(!confirm("Yakin ingin menghapus event ini?")) return;
-    await supabase.from('events').delete().eq('id', id);
+  const executeDelete = async () => {
+    if(!deleteId) return;
+    const { error } = await supabase.from('events').delete().eq('id', deleteId);
+    if(error) {
+      toast.error('Gagal menghapus event!');
+    } else {
+      toast.success('Event berhasil dihapus!');
+    }
+    setDeleteId(null);
     loadEvents();
   };
 
@@ -287,7 +297,7 @@ export default function AgendaPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleDelete(ev.id)}
+                      onClick={() => setDeleteId(ev.id)}
                       className="p-2 rounded-lg text-muted hover:bg-danger/10 hover:text-danger opacity-0 group-hover:opacity-100 transition-all"
                       title="Hapus"
                     >
@@ -389,6 +399,14 @@ export default function AgendaPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        title="Hapus Event"
+        message="Apakah Anda yakin ingin menghapus event ini? Event yang sudah lewat pada tahun sebelumnya akan masuk ke riwayat secara otomatis, namun tindakan penghapusan ini bersifat permanen."
+        onCancel={() => setDeleteId(null)}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

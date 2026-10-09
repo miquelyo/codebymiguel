@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import ConfirmModal from '@/app/components/ConfirmModal';
 
 interface Note {
   id: string;
@@ -14,6 +16,7 @@ export default function NotesPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   
   // Load notes from local storage on mount
   useEffect(() => {
@@ -51,10 +54,14 @@ export default function NotesPage() {
     setTitle('');
     setContent('');
     setIsAdding(false);
+    toast.success('Catatan berhasil disimpan!');
   };
 
-  const handleDelete = (id: string) => {
-    setNotes(notes.filter(n => n.id !== id));
+  const executeDelete = () => {
+    if(!deleteId) return;
+    setNotes(notes.filter(n => n.id !== deleteId));
+    setDeleteId(null);
+    toast.success('Catatan berhasil dihapus!');
   };
 
   return (
@@ -131,8 +138,8 @@ export default function NotesPage() {
                   {note.title}
                 </h3>
                 <button 
-                  onClick={() => handleDelete(note.id)}
-                  className="opacity-0 group-hover:opacity-100 text-muted hover:text-foreground transition-all shrink-0 p-1 bg-surface-hover rounded-md"
+                  onClick={() => setDeleteId(note.id)}
+                  className="opacity-0 group-hover:opacity-100 text-muted hover:text-foreground transition-all shrink-0 p-1 bg-surface-hover rounded-md hover:text-danger hover:bg-danger/10"
                   title="Hapus"
                 >
                   <TrashIcon className="w-3.5 h-3.5" />
@@ -149,6 +156,13 @@ export default function NotesPage() {
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={!!deleteId}
+        title="Hapus Catatan"
+        message="Apakah Anda yakin ingin menghapus catatan ini? Tindakan ini bersifat permanen."
+        onCancel={() => setDeleteId(null)}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

@@ -388,8 +388,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                            hover:bg-surface-hover transition-all duration-200 group"
               >
                 {/* Avatar */}
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-bold text-background bg-foreground shrink-0">
-                  {user.avatar}
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-bold text-white bg-primary shrink-0 overflow-hidden">
+                  {user.avatar.length > 2 ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : user.avatar}
                 </div>
                 {/* Name & role — hidden on small screens */}
                 <div className="hidden lg:block text-left leading-tight">
@@ -412,9 +412,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="px-4 py-4 border-b border-border"
                        style={{ background: 'var(--gradient-card)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold text-white shrink-0"
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold text-white shrink-0 overflow-hidden"
                            style={{ background: 'var(--gradient-primary)' }}>
-                        {user.avatar}
+                        {user.avatar.length > 2 ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : user.avatar}
                       </div>
                       <div className="min-w-0">
                         <p className="text-[14px] font-bold text-foreground truncate"
@@ -431,7 +431,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
 
                   {/* Menu items */}
-                  <div className="p-2">
+                  <div className="p-2 space-y-1">
+                    <Link
+                      href="/dashboard/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                                 text-[13px] font-medium text-foreground hover:bg-surface-hover
+                                 transition-colors duration-150"
+                    >
+                      <svg className="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                      Pengaturan Profil
+                    </Link>
+
                     <button
                       id="profile-logout"
                       onClick={() => { setProfileOpen(false); logout(); }}
