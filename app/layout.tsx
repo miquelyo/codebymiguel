@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/app/components/AuthProvider";
+import PwaRegister from "@/app/components/PwaRegister";
+import type { Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "CodebyMiguel — Dashboard",
   description: "Dashboard admin modern untuk kelola bisnis Anda dengan mudah.",
+  manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#000000",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -20,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="min-h-screen bg-background text-foreground">
+        <PwaRegister />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
