@@ -186,11 +186,12 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-card border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full">
         <h3 className="text-lg font-bold text-foreground mb-4">Verifikasi Wajah</h3>
-        <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden mb-4">
+        <div className="relative w-full aspect-square sm:aspect-video bg-black rounded-xl overflow-hidden mb-4">
           <video
             ref={videoRef}
             autoPlay
             muted
+            playsInline
             onPlay={handleVideoPlay}
             className="w-full h-full object-cover relative z-10"
           />

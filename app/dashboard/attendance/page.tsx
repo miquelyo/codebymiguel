@@ -220,7 +220,7 @@ export default function AttendancePage() {
 
   const [isLoadingToday, setIsLoadingToday] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scannerMode, setScannerMode] = useState<'in' | 'out' | null>(null);
+  const [scannerMode, setScannerMode] = useState<'in' | 'out' | 'test' | null>(null);
 
   const [locationInfo, setLocationInfo] =
     useState<LocationInfo | null>(null);
@@ -747,6 +747,14 @@ export default function AttendancePage() {
               Waktu lokal ·{' '}
               {locationInfo?.timezoneLabel || 'LOCAL'}
             </p>
+
+            <button
+              onClick={() => setScannerMode('test')}
+              className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bg-surface-hover text-foreground hover:bg-border transition-colors flex items-center justify-center gap-2 w-full lg:w-auto lg:ml-auto lg:mr-0"
+            >
+              <FingerprintIcon className="w-3.5 h-3.5" />
+              Test Kamera & Deteksi Wajah
+            </button>
           </div>
         </div>
       </motion.div>
@@ -1425,6 +1433,8 @@ export default function AttendancePage() {
               await handleCheckIn(imageBase64);
             } else if (currentMode === 'out') {
               await handleCheckOut(imageBase64);
+            } else if (currentMode === 'test') {
+              showToast('Test Berhasil! Wajah terdeteksi dengan baik.', 'success');
             }
           }}
         />
