@@ -108,7 +108,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         }
 
         // Check confidence score (accessories, lighting)
-        if (detections.detection.score < 0.95) {
+        if (detections.detection.score < 0.75) {
           validFrames = 0;
           setStatusText('Wajah kurang jelas. Mohon lepaskan aksesoris (kacamata/masker) atau cari tempat terang.');
           setIsDetecting(false);
@@ -131,7 +131,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         const distance = Math.hypot(currCenter.x - lastCenter.x, currCenter.y - lastCenter.y);
         lastCenter = currCenter;
 
-        if (validFrames > 0 && distance > 10) {
+        if (validFrames > 0 && distance > 25) {
           validFrames = 0;
           setStatusText('Anda bergerak. Harap diam sejenak dan tatap kamera.');
           setIsDetecting(false);
@@ -166,6 +166,8 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         canvas.height = videoRef.current.videoHeight;
         const ctxImg = canvas.getContext('2d');
         if (ctxImg) {
+          ctxImg.translate(canvas.width, 0);
+          ctxImg.scale(-1, 1);
           ctxImg.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         }
         const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
@@ -193,11 +195,11 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
             muted
             playsInline
             onPlay={handleVideoPlay}
-            className="w-full h-full object-cover relative z-10"
+            className="w-full h-full object-cover relative z-10 scale-x-[-1]"
           />
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 z-20 w-full h-full object-cover pointer-events-none"
+            className="absolute inset-0 z-20 w-full h-full object-cover pointer-events-none scale-x-[-1]"
           />
           {!isModelLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-surface-hover/80 z-30">
