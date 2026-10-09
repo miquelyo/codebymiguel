@@ -29,6 +29,6 @@ export function proxy(request: NextRequest) {
 export const config = {
   // Jalankan proxy di semua route kecuali aset statis & API Next.js
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.json|icon.svg|api/).*)',
   ],
 };
