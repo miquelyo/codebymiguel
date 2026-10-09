@@ -245,7 +245,8 @@ export default function AITrackerPage() {
         </button>
       </motion.div>
 
-      <div className="bg-card rounded-[24px] border border-border shadow-sm overflow-x-auto relative">
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-card rounded-[24px] border border-border shadow-sm overflow-x-auto relative">
         <table className="w-full text-left border-collapse min-w-[600px]">
           <thead>
             <tr className="border-b border-border bg-surface-hover/50">
@@ -290,7 +291,7 @@ export default function AITrackerPage() {
                     </td>
 
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                         <button onClick={() => handleEdit(ag)} className="p-1.5 text-muted hover:text-info hover:bg-info/10 rounded-lg transition-colors" title="Setel Ulang Waktu">
                           <EditIcon className="w-4 h-4" />
                         </button>
@@ -305,6 +306,64 @@ export default function AITrackerPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-4">
+        {loading ? (
+          <div className="py-10 text-center text-muted bg-card rounded-[24px] border border-border">Memuat data...</div>
+        ) : agents.length === 0 ? (
+          <div className="py-12 text-center text-muted bg-surface border border-border/50 rounded-[24px] border-dashed">
+            Belum ada akun AI yang ditambahkan.
+          </div>
+        ) : (
+          agents.map((ag, i) => (
+            <motion.div
+              key={ag.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="bg-card border border-border p-5 rounded-2xl flex flex-col gap-4 shadow-sm relative group"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted mb-1 block">Akun Email</span>
+                  <p className="font-semibold text-foreground text-sm truncate max-w-[200px]">{ag.email_account}</p>
+                </div>
+                <div className="flex items-center gap-2 opacity-100 transition-all">
+                  <button onClick={() => handleEdit(ag)} className="p-2 text-muted hover:text-info hover:bg-info/10 rounded-xl bg-surface transition-colors">
+                    <EditIcon className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setDeleteId(ag.id)} className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-xl bg-surface transition-colors">
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="bg-surface rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    </div>
+                    <span className="text-[10px] font-bold text-foreground">Claude / GPT</span>
+                  </div>
+                  <CountdownTimer targetDate={ag.claude_gpt_refresh_at} />
+                </div>
+                
+                <div className="bg-surface rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0">
+                      <SparklesIcon className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-[10px] font-bold text-foreground">Gemini</span>
+                  </div>
+                  <CountdownTimer targetDate={ag.gemini_refresh_at} />
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
       </div>
 
       <AnimatePresence>

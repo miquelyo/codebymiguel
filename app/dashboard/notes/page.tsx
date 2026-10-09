@@ -139,7 +139,7 @@ export default function NotesPage() {
                 </h3>
                 <button 
                   onClick={() => setDeleteId(note.id)}
-                  className="opacity-0 group-hover:opacity-100 text-muted hover:text-foreground transition-all shrink-0 p-1 bg-surface-hover rounded-md hover:text-danger hover:bg-danger/10"
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted hover:text-foreground transition-all shrink-0 p-1 bg-surface-hover rounded-md hover:text-danger hover:bg-danger/10"
                   title="Hapus"
                 >
                   <TrashIcon className="w-3.5 h-3.5" />

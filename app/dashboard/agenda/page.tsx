@@ -298,7 +298,7 @@ export default function AgendaPage() {
                     </div>
                     <button
                       onClick={() => setDeleteId(ev.id)}
-                      className="p-2 rounded-lg text-muted hover:bg-danger/10 hover:text-danger opacity-0 group-hover:opacity-100 transition-all"
+                      className="p-2 rounded-lg text-muted hover:bg-danger/10 hover:text-danger opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                       title="Hapus"
                     >
                       <TrashIcon className="w-5 h-5" />

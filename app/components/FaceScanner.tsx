@@ -108,9 +108,9 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         }
 
         // Check confidence score (accessories, lighting)
-        if (detections.detection.score < 0.75) {
+        if (detections.detection.score < 0.4) {
           validFrames = 0;
-          setStatusText('Wajah kurang jelas. Mohon lepaskan aksesoris (kacamata/masker) atau cari tempat terang.');
+          setStatusText('Wajah tidak jelas. Tolong cari tempat yang lebih terang.');
           setIsDetecting(false);
           return;
         }
