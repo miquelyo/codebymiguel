@@ -317,7 +317,11 @@ export default function AITrackerPage() {
             Belum ada akun AI yang ditambahkan.
           </div>
         ) : (
-          agents.map((ag, i) => (
+          agents.map((ag, i) => {
+            const geminiStatus = getRemainingTimeStatus(ag.gemini_refresh_at);
+            const claudeGptStatus = getRemainingTimeStatus(ag.claude_gpt_refresh_at);
+            
+            return (
             <motion.div
               key={ag.id}
               initial={{ opacity: 0, y: 10 }}
@@ -348,7 +352,12 @@ export default function AITrackerPage() {
                     </div>
                     <span className="text-[10px] font-bold text-foreground">Claude / GPT</span>
                   </div>
-                  <CountdownTimer targetDate={ag.claude_gpt_refresh_at} />
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-colors
+                    ${claudeGptStatus.isAvailable ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20'}`}
+                  >
+                    {claudeGptStatus.isAvailable ? <CheckCircleIcon className="w-3.5 h-3.5" /> : <ClockIcon className="w-3.5 h-3.5" />}
+                    {claudeGptStatus.text}
+                  </div>
                 </div>
                 
                 <div className="bg-surface rounded-xl p-3">
@@ -358,11 +367,16 @@ export default function AITrackerPage() {
                     </div>
                     <span className="text-[10px] font-bold text-foreground">Gemini</span>
                   </div>
-                  <CountdownTimer targetDate={ag.gemini_refresh_at} />
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-colors
+                    ${geminiStatus.isAvailable ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20'}`}
+                  >
+                    {geminiStatus.isAvailable ? <CheckCircleIcon className="w-3.5 h-3.5" /> : <ClockIcon className="w-3.5 h-3.5" />}
+                    {geminiStatus.text}
+                  </div>
                 </div>
               </div>
             </motion.div>
-          ))
+          )})
         )}
       </div>
 
