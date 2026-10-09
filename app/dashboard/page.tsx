@@ -1,845 +1,208 @@
 'use client';
-import './dashboard.css';
 
-
-import { useEffect, useState } from 'react';
-
-/* =========================
-   TYPES
-========================= */
-
-type Stat = {
-  title: string;
-  value: string;
-  change: string;
-  positive: boolean;
-  description: string;
-  data: number[];
-};
-
-type Activity = {
-  id: number;
-  name: string;
-  action: string;
-  time: string;
-  amount?: string;
-  initials: string;
-};
-
-type Product = {
-  name: string;
-  category: string;
-  sales: number;
-  revenue: string;
-  trend: number;
-};
-
-/* =========================
-   DUMMY DATA
-========================= */
-
-const STATS: Stat[] = [
-  {
-    title: 'Total Revenue',
-    value: '$48,295',
-    change: '12.5%',
-    positive: true,
-    description: 'vs. previous month',
-    data: [35, 42, 38, 48, 44, 58, 52, 68, 62, 72, 65, 82],
-  },
-  {
-    title: 'Total Users',
-    value: '2,847',
-    change: '8.2%',
-    positive: true,
-    description: 'vs. previous month',
-    data: [30, 35, 32, 42, 38, 48, 45, 54, 50, 62, 58, 70],
-  },
-  {
-    title: 'Total Orders',
-    value: '1,384',
-    change: '5.7%',
-    positive: true,
-    description: 'vs. previous month',
-    data: [25, 32, 28, 40, 35, 44, 42, 52, 48, 58, 55, 65],
-  },
-  {
-    title: 'Bounce Rate',
-    value: '23.4%',
-    change: '2.1%',
-    positive: false,
-    description: 'vs. previous month',
-    data: [65, 60, 64, 55, 58, 52, 48, 50, 44, 42, 40, 38],
-  },
-];
-
-const REVENUE_DATA = [
-  { month: 'Jan', value: 28000 },
-  { month: 'Feb', value: 32000 },
-  { month: 'Mar', value: 29500 },
-  { month: 'Apr', value: 36000 },
-  { month: 'May', value: 33500 },
-  { month: 'Jun', value: 41000 },
-  { month: 'Jul', value: 38500 },
-  { month: 'Aug', value: 45000 },
-  { month: 'Sep', value: 42000 },
-  { month: 'Oct', value: 48000 },
-  { month: 'Nov', value: 45500 },
-  { month: 'Dec', value: 52000 },
-];
-
-const TRAFFIC = [
-  {
-    name: 'Organic Search',
-    value: 51,
-  },
-  {
-    name: 'Direct',
-    value: 24,
-  },
-  {
-    name: 'Referral',
-    value: 15,
-  },
-  {
-    name: 'Social Media',
-    value: 10,
-  },
-];
-
-const ACTIVITIES: Activity[] = [
-  {
-    id: 1,
-    name: 'Sarah Miller',
-    action: 'placed a new order',
-    time: '2 minutes ago',
-    amount: '$249.00',
-    initials: 'SM',
-  },
-  {
-    id: 2,
-    name: 'James Wilson',
-    action: 'created an account',
-    time: '18 minutes ago',
-    initials: 'JW',
-  },
-  {
-    id: 3,
-    name: 'Emma Davis',
-    action: 'completed payment',
-    time: '42 minutes ago',
-    amount: '$189.00',
-    initials: 'ED',
-  },
-  {
-    id: 4,
-    name: 'Michael Chen',
-    action: 'placed a new order',
-    time: '1 hour ago',
-    amount: '$420.00',
-    initials: 'MC',
-  },
-  {
-    id: 5,
-    name: 'Olivia Brown',
-    action: 'created an account',
-    time: '2 hours ago',
-    initials: 'OB',
-  },
-];
-
-const PRODUCTS: Product[] = [
-  {
-    name: 'Premium Widget Pro',
-    category: 'Software',
-    sales: 482,
-    revenue: '$18,940',
-    trend: 12.5,
-  },
-  {
-    name: 'Starter Pack Basic',
-    category: 'Software',
-    sales: 365,
-    revenue: '$9,125',
-    trend: 8.4,
-  },
-  {
-    name: 'Enterprise Suite',
-    category: 'Enterprise',
-    sales: 218,
-    revenue: '$8,720',
-    trend: 6.2,
-  },
-  {
-    name: 'Mobile Addon',
-    category: 'Add-on',
-    sales: 194,
-    revenue: '$5,432',
-    trend: 4.8,
-  },
-];
-
-/* =========================
-   ICONS
-========================= */
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 function ArrowUpRight() {
   return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M7 17L17 7" />
       <path d="M7 7h10v10" />
     </svg>
   );
 }
 
-function ArrowDownRight() {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M7 7l10 10" />
-      <path d="M17 7v10H7" />
-    </svg>
-  );
-}
+const DASHBOARD_MENUS = [
+  {
+    title: 'Absensi Harian',
+    desc: 'Catat jam kedatangan dan pulang dengan batas toleransi keterlambatan otomatis.',
+    href: '/dashboard/attendance',
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375c0 .621-.504 1.125-1.125 1.125H6.75A1.125 1.125 0 015.625 19.5V10.125c0-.621.504-1.125 1.125-1.125z" />
+      </svg>
+    ),
+    color: 'from-blue-500 to-indigo-600',
+    bgLight: 'bg-blue-500/10',
+    textColor: 'text-blue-500'
+  },
+  {
+    title: 'Notes & Tugas',
+    desc: 'Simpan ide, rancangan, atau catatan tugas dengan editor markdown interaktif.',
+    href: '/dashboard/notes',
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9zm3.75 11.625a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+      </svg>
+    ),
+    color: 'from-amber-400 to-orange-500',
+    bgLight: 'bg-amber-500/10',
+    textColor: 'text-amber-500'
+  },
+  {
+    title: 'Agenda & Events',
+    desc: 'Atur jadwal meeting, interview, hingga hari jadi. Event sekali lewat otomatis terhapus.',
+    href: '/dashboard/agenda',
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+      </svg>
+    ),
+    color: 'from-emerald-400 to-teal-500',
+    bgLight: 'bg-emerald-500/10',
+    textColor: 'text-emerald-500'
+  },
+  {
+    title: 'AI Agent Tracker',
+    desc: 'Pantau model Claude, GPT, dan Gemini di berbagai akun lengkap dengan timer refresh-nya.',
+    href: '/dashboard/ai-tracker',
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09l2.846.813-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+      </svg>
+    ),
+    color: 'from-pink-500 to-rose-600',
+    bgLight: 'bg-pink-500/10',
+    textColor: 'text-pink-500'
+  }
+];
 
-function RevenueIcon() {
-  return (
-    <svg
-      width="21"
-      height="21"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 3v18h18" />
-      <path d="M7 16l4-5 3 3 5-7" />
-    </svg>
-  );
-}
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
 
-function UsersIcon() {
-  return (
-    <svg
-      width="21"
-      height="21"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
-function CartIcon() {
-  return (
-    <svg
-      width="21"
-      height="21"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="9" cy="20" r="1" />
-      <circle cx="18" cy="20" r="1" />
-      <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.5L21 8H6" />
-    </svg>
-  );
-}
-
-function ActivityIcon() {
-  return (
-    <svg
-      width="21"
-      height="21"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function MoreIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="5" cy="12" r="1" />
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="19" cy="12" r="1" />
-    </svg>
-  );
-}
-
-/* =========================
-   SPARKLINE
-========================= */
-
-function Sparkline({
-  data,
-  positive,
-}: {
-  data: number[];
-  positive: boolean;
-}) {
-  const width = 110;
-  const height = 42;
-  const padding = 4;
-
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-
-  const points = data
-    .map((value, index) => {
-      const x =
-        padding +
-        (index / (data.length - 1)) * (width - padding * 2);
-
-      const normalized =
-        max === min ? 0.5 : (value - min) / (max - min);
-
-      const y =
-        height -
-        padding -
-        normalized * (height - padding * 2);
-
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      className={`sparkline ${positive ? 'positive' : 'negative'}`}
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/* =========================
-   STAT CARD
-========================= */
-
-function StatCard({
-  stat,
-  index,
-}: {
-  stat: Stat;
-  index: number;
-}) {
-  const icons = [
-    <RevenueIcon key="revenue" />,
-    <UsersIcon key="users" />,
-    <CartIcon key="cart" />,
-    <ActivityIcon key="activity" />,
-  ];
-
-  return (
-    <div className="stat-card">
-      <div className="stat-top">
-        <div className={`stat-icon stat-icon-${index}`}>
-          {icons[index]}
-        </div>
-
-        <button className="icon-button" aria-label="More options">
-          <MoreIcon />
-        </button>
-      </div>
-
-      <div className="stat-content">
-        <p className="stat-title">{stat.title}</p>
-
-        <div className="stat-value">{stat.value}</div>
-
-        <div className="stat-bottom">
-          <div className="stat-change">
-            <span
-              className={
-                stat.positive
-                  ? 'change-positive'
-                  : 'change-negative'
-              }
-            >
-              {stat.positive ? (
-                <ArrowUpRight />
-              ) : (
-                <ArrowDownRight />
-              )}
-
-              {stat.change}
-            </span>
-
-            <span className="stat-description">
-              {stat.description}
-            </span>
-          </div>
-
-          <Sparkline
-            data={stat.data}
-            positive={stat.positive}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   REVENUE CHART
-========================= */
-
-function RevenueChart() {
-  const maxValue = Math.max(
-    ...REVENUE_DATA.map((item) => item.value)
-  );
-
-  return (
-    <div className="chart-card revenue-card">
-      <div className="card-header">
-        <div>
-          <h3>Revenue Overview</h3>
-          <p>Monthly revenue performance</p>
-        </div>
-
-        <button className="more-button" aria-label="More options">
-          <MoreIcon />
-        </button>
-      </div>
-
-      <div className="revenue-total">
-        <span>$48,295</span>
-        <div className="revenue-growth">
-          <ArrowUpRight />
-          12.5%
-        </div>
-      </div>
-
-      <div className="chart-area">
-        <div className="y-axis">
-          <span>$60K</span>
-          <span>$45K</span>
-          <span>$30K</span>
-          <span>$15K</span>
-          <span>$0</span>
-        </div>
-
-        <div className="bars-container">
-          <div className="grid-lines">
-            <span />
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-
-          <div className="bars">
-            {REVENUE_DATA.map((item) => {
-              const height =
-                (item.value / maxValue) * 100;
-
-              return (
-                <div
-                  className="bar-wrapper"
-                  key={item.month}
-                >
-                  <div
-                    className="bar"
-                    style={{
-                      height: `${height}%`,
-                    }}
-                    title={`${item.month}: $${item.value.toLocaleString()}`}
-                  />
-
-                  <span className="bar-label">
-                    {item.month}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   TRAFFIC CHART
-========================= */
-
-function TrafficChart() {
-  return (
-    <div className="chart-card traffic-card">
-      <div className="card-header">
-        <div>
-          <h3>Traffic Sources</h3>
-          <p>Where your visitors come from</p>
-        </div>
-
-        <button className="more-button" aria-label="More options">
-          <MoreIcon />
-        </button>
-      </div>
-
-      <div className="traffic-content">
-        <div className="donut-wrapper">
-          <div className="donut">
-            <div className="donut-center">
-              <strong>24.8K</strong>
-              <span>Visitors</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="traffic-list">
-          {TRAFFIC.map((item, index) => (
-            <div className="traffic-item" key={item.name}>
-              <div className="traffic-item-top">
-                <div className="traffic-name">
-                  <span
-                    className={`traffic-dot traffic-dot-${index}`}
-                  />
-
-                  {item.name}
-                </div>
-
-                <strong>{item.value}%</strong>
-              </div>
-
-              <div className="traffic-progress">
-                <div
-                  className={`traffic-progress-fill traffic-fill-${index}`}
-                  style={{
-                    width: `${item.value}%`,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   ACTIVITY
-========================= */
-
-function RecentActivity() {
-  return (
-    <div className="content-card">
-      <div className="card-header">
-        <div>
-          <h3>Recent Activity</h3>
-          <p>Latest activity from your users</p>
-        </div>
-
-        <button className="view-all-button">
-          View all
-          <ArrowUpRight />
-        </button>
-      </div>
-
-      <div className="activity-list">
-        {ACTIVITIES.map((activity) => (
-          <div
-            className="activity-item"
-            key={activity.id}
-          >
-            <div className="activity-avatar">
-              {activity.initials}
-            </div>
-
-            <div className="activity-info">
-              <p>
-                <strong>{activity.name}</strong>{' '}
-                {activity.action}
-              </p>
-
-              <span>{activity.time}</span>
-            </div>
-
-            {activity.amount && (
-              <div className="activity-amount">
-                {activity.amount}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   PRODUCTS
-========================= */
-
-function TopProducts() {
-  return (
-    <div className="content-card">
-      <div className="card-header">
-        <div>
-          <h3>Top Products</h3>
-          <p>Best performing products</p>
-        </div>
-
-        <button className="more-button" aria-label="More options">
-          <MoreIcon />
-        </button>
-      </div>
-
-      <div className="products-list">
-        {PRODUCTS.map((product, index) => (
-          <div
-            className="product-item"
-            key={product.name}
-          >
-            <div className="product-number">
-              {String(index + 1).padStart(2, '0')}
-            </div>
-
-            <div className="product-info">
-              <strong>{product.name}</strong>
-              <span>{product.category}</span>
-            </div>
-
-            <div className="product-sales">
-              <strong>{product.sales}</strong>
-              <span>sales</span>
-            </div>
-
-            <div className="product-revenue">
-              <strong>{product.revenue}</strong>
-
-              <span>
-                <ArrowUpRight />
-                {product.trend}%
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   MAIN DASHBOARD
-========================= */
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+};
 
 export default function DashboardPage() {
-  const [ready, setReady] = useState(false);
-  const [period, setPeriod] = useState<
-    'Monthly' | 'Weekly'
-  >('Monthly');
+  const [mounted, setMounted] = useState(false);
+  const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    setReady(true);
+    setMounted(true);
+    const timer = setInterval(() => setTime(new Date()), 60000); // update every minute
+    return () => clearInterval(timer);
   }, []);
 
-  const currentHour = new Date().getHours();
+  if (!mounted) return null;
 
-  let greeting = 'Good evening';
+  const currentHour = time.getHours();
+  let greeting = 'Selamat Malam';
+  if (currentHour < 12) greeting = 'Selamat Pagi';
+  else if (currentHour < 15) greeting = 'Selamat Siang';
+  else if (currentHour < 18) greeting = 'Selamat Sore';
 
-  if (currentHour < 12) {
-    greeting = 'Good morning';
-  } else if (currentHour < 18) {
-    greeting = 'Good afternoon';
-  }
-
-  const today = new Date().toLocaleDateString(
-    'id-ID',
-    {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }
-  );
-
-  if (!ready) {
-    return (
-      <div className="dashboard-loading">
-        <div className="loading-spinner" />
-      </div>
-    );
-  }
+  const dateStr = time.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <main className="dashboard-page">
-      {/* =========================
-          PAGE HEADER
-      ========================= */}
-
-      <section className="dashboard-header">
-        <div>
-          <div className="header-eyebrow">
-            Dashboard
+    <div className="max-w-7xl mx-auto space-y-8 pb-10 overflow-hidden">
+      
+      {/* Header Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="relative overflow-hidden bg-card border border-border rounded-3xl p-8 md:p-10 shadow-sm glass"
+      >
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-info/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-hover border border-border mb-4"
+            >
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Sistem Aktif</span>
+            </motion.div>
+            
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3 tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+              {greeting}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-info">Miguel</span> 👋
+            </h1>
+            <p className="text-muted text-base max-w-lg leading-relaxed">
+              Selamat datang di pusat kendali workspace Anda. Semua fitur dirancang untuk meningkatkan produktivitas harian Anda.
+            </p>
           </div>
-
-          <h1>
-            {greeting}, Miquel <span>👋</span>
-          </h1>
-
-          <p>
-            Here&apos;s what&apos;s happening with your
-            workspace today.
-          </p>
-        </div>
-
-        <div className="header-actions">
-          <div className="date-badge">
-            <CalendarIcon />
-            <span>{today}</span>
+          
+          <div className="shrink-0 flex items-center gap-3 bg-surface border border-border px-5 py-3 rounded-2xl shadow-sm">
+            <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Hari Ini</span>
+              <span className="text-sm font-semibold text-foreground">{dateStr}</span>
+            </div>
           </div>
         </div>
-      </section>
+      </motion.div>
 
-      {/* =========================
-          STATS
-      ========================= */}
-
-      <section className="stats-grid">
-        {STATS.map((stat, index) => (
-          <StatCard
-            key={stat.title}
-            stat={stat}
-            index={index}
-          />
-        ))}
-      </section>
-
-      {/* =========================
-          CHARTS
-      ========================= */}
-
-      <section className="charts-grid">
-        <RevenueChart />
-
-        <TrafficChart />
-      </section>
-
-      {/* =========================
-          LOWER CONTENT HEADER
-      ========================= */}
-
-      <section className="section-heading">
-        <div>
-          <h2>Performance</h2>
-          <p>
-            Keep track of your latest activities and
-            performance.
-          </p>
+      {/* Menus Grid */}
+      <div>
+        <div className="flex items-center justify-between mb-6 px-2">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+            <span className="w-2 h-6 rounded-full bg-primary inline-block" />
+            Akses Cepat Menu
+          </h2>
         </div>
 
-        <div className="period-switcher">
-          <button
-            className={
-              period === 'Weekly'
-                ? 'period-active'
-                : ''
-            }
-            onClick={() => setPeriod('Weekly')}
-          >
-            Weekly
-          </button>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-2 gap-5"
+        >
+          {DASHBOARD_MENUS.map((menu, i) => (
+            <Link href={menu.href} key={i} className="block group outline-none">
+              <motion.div 
+                variants={itemVariants}
+                whileHover={{ y: -5, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className="relative h-full bg-card border border-border p-6 rounded-3xl overflow-hidden transition-all duration-300 group-hover:shadow-xl group-hover:shadow-foreground/5 group-focus-visible:ring-2 group-focus-visible:ring-primary"
+              >
+                {/* Background Accent */}
+                <div className={`absolute top-0 right-0 w-32 h-32 opacity-20 blur-2xl rounded-full transition-transform duration-500 group-hover:scale-150 bg-gradient-to-br ${menu.color}`} />
+                
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${menu.bgLight} ${menu.textColor} shadow-inner`}>
+                      {menu.icon}
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-surface-hover flex items-center justify-center text-muted group-hover:bg-foreground group-hover:text-background transition-colors duration-300">
+                      <ArrowUpRight />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-auto">
+                    <h3 className="text-xl font-bold text-foreground mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+                      {menu.title}
+                    </h3>
+                    <p className="text-sm text-muted leading-relaxed">
+                      {menu.desc}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Bottom Line Accent */}
+                <div className={`absolute bottom-0 left-0 h-1 w-0 group-hover:w-full bg-gradient-to-r ${menu.color} transition-all duration-500`} />
+              </motion.div>
+            </Link>
+          ))}
+        </motion.div>
+      </div>
 
-          <button
-            className={
-              period === 'Monthly'
-                ? 'period-active'
-                : ''
-            }
-            onClick={() => setPeriod('Monthly')}
-          >
-            Monthly
-          </button>
-        </div>
-      </section>
-
-      {/* =========================
-          ACTIVITY + PRODUCTS
-      ========================= */}
-
-      <section className="bottom-grid">
-        <RecentActivity />
-
-        <TopProducts />
-      </section>
-
-          </main>
+    </div>
   );
 }
