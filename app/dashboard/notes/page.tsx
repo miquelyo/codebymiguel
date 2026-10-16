@@ -78,7 +78,7 @@ export default function NotesPage() {
         </div>
         <button 
           onClick={() => setIsAdding(true)}
-          className="self-start sm:self-auto bg-foreground text-background font-semibold rounded-xl px-5 py-2.5 text-[13px] hover:shadow-lg transition-all flex items-center gap-2"
+          className="self-start sm:self-auto bg-primary text-white font-semibold rounded-2xl px-5 py-2.5 text-xs hover:opacity-90 active:scale-95 shadow-md shadow-primary/20 transition-all flex items-center gap-2"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
           <PlusIcon className="w-4 h-4" /> Tambah Catatan
@@ -87,13 +87,13 @@ export default function NotesPage() {
 
       {/* ── Add Note Form ─────────────────────────── */}
       {isAdding && (
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm card-glow animate-fade-up">
+        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm card-glow animate-fade-up">
           <input
             type="text"
-            placeholder="Judul Catatan"
+            placeholder="Judul Catatan..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-transparent text-[18px] font-bold text-foreground placeholder:text-muted/40 focus:outline-none mb-4"
+            className="w-full bg-transparent text-lg font-bold text-foreground placeholder:text-muted/40 focus:outline-none mb-3"
             style={{ fontFamily: 'var(--font-heading)' }}
             autoFocus
           />
@@ -101,20 +101,20 @@ export default function NotesPage() {
             placeholder="Tulis sesuatu di sini..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full bg-transparent text-[14px] text-foreground placeholder:text-muted/40 focus:outline-none min-h-[120px] resize-y"
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40 focus:outline-none min-h-[120px] resize-y"
           />
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border/50">
+          <div className="flex justify-end gap-2.5 mt-4 pt-4 border-t border-border/50">
             <button 
               onClick={() => { setIsAdding(false); setTitle(''); setContent(''); }}
-              className="px-4 py-2 text-[13px] font-semibold text-muted hover:text-foreground transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-muted hover:text-foreground transition-colors rounded-xl hover:bg-surface-hover"
             >
               Batal
             </button>
             <button 
               onClick={handleSave}
-              className="px-5 py-2 text-[13px] font-semibold bg-foreground text-background rounded-lg hover:shadow-md transition-all"
+              className="px-5 py-2 text-xs font-semibold bg-primary text-white rounded-xl shadow-md shadow-primary/20 hover:opacity-90 active:scale-95 transition-all"
             >
-              Simpan
+              Simpan Catatan
             </button>
           </div>
         </div>
