@@ -56,14 +56,6 @@ function SparklesIcon({ className }: { className?: string }) {
   );
 }
 
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  );
-}
-
 function BellIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -96,10 +88,10 @@ function LogoutIcon({ className }: { className?: string }) {
   );
 }
 
-function ChevronRightIcon({ className }: { className?: string }) {
+function UserIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   );
 }
@@ -107,17 +99,17 @@ function ChevronRightIcon({ className }: { className?: string }) {
 /* ─────────────────────── Nav config ────────────────────────── */
 const NAV = [
   { label: 'Dashboard', shortLabel: 'Home', href: '/dashboard', icon: GridIcon, badge: null },
-  { label: 'Absensi', shortLabel: 'Absen', href: '/dashboard/attendance', icon: AttendanceIcon, isHero: true },
-  { label: 'Notes', shortLabel: 'Notes', href: '/dashboard/notes', icon: NoteIcon, badge: null },
+  { label: 'Notes & Tugas', shortLabel: 'Notes', href: '/dashboard/notes', icon: NoteIcon, badge: null },
+  { label: 'Absensi Wajah AI', shortLabel: 'Absen', href: '/dashboard/attendance', icon: AttendanceIcon, isHero: true, badge: 'Live' },
   { label: 'Agenda & Events', shortLabel: 'Agenda', href: '/dashboard/agenda', icon: CalendarIcon, badge: null },
-  { label: 'AI Agent Tracker', shortLabel: 'AI Model', href: '/dashboard/ai-tracker', icon: SparklesIcon, badge: 'AI' },
+  { label: 'AI Agent Tracker', shortLabel: 'AI Radar', href: '/dashboard/ai-tracker', icon: SparklesIcon, badge: 'Radar' },
 ];
 
 function getPageInfo(pathname: string): { title: string; subtitle: string } {
   const match = NAV.find((n) => n.href === pathname);
-  if (match) return { title: match.label, subtitle: 'Pusat Kendali Workspace' };
-  if (pathname.includes('/profile')) return { title: 'Profil Pengguna', subtitle: 'Pengaturan Akun' };
-  return { title: 'Dashboard', subtitle: 'Pusat Kendali Workspace' };
+  if (match) return { title: match.label, subtitle: 'Pusat Kendali Operasional' };
+  if (pathname.includes('/profile')) return { title: 'Profil Akun', subtitle: 'Informasi & Kredensial Keamanan' };
+  return { title: 'Dashboard', subtitle: 'Pusat Kendali Operasional' };
 }
 
 /* ─────────────────────── Layout ────────────────────────────── */
@@ -128,25 +120,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [dark, setDark] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [searchVal, setSearchVal] = useState('');
+  const [time, setTime] = useState<string>('');
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const pageInfo = getPageInfo(pathname);
 
-  // Sync dark mode
+  // Sync theme
   useEffect(() => {
-    // Check saved theme or system preference
     const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setDark(true);
+    const isDark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setDark(isDark);
+    if (isDark) {
       document.documentElement.classList.add('dark');
     } else {
-      setDark(false);
       document.documentElement.classList.remove('dark');
     }
+  }, []);
+
+  // Live time ticker
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTime(
+        now.toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleToggleTheme = () => {
@@ -158,7 +166,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
   };
 
-  // Close dropdowns on outside click
+  // Close dropdowns on click outside
   useEffect(() => {
     function handle(e: MouseEvent) {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
@@ -172,19 +180,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
-            style={{ background: 'var(--gradient-primary)' }}
-          >
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 shadow-xl shadow-indigo-500/25 animate-pulse">
             <CodeIcon className="w-6 h-6 text-white" />
           </div>
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="text-xs font-semibold text-muted tracking-wide uppercase">Memuat Workspace...</span>
-          </div>
+          <span className="text-xs font-semibold text-muted tracking-widest uppercase">
+            Memuat Workspace...
+          </span>
         </div>
       </div>
     );
@@ -195,37 +196,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-background relative selection:bg-primary/20 selection:text-primary">
       {/* ── Desktop Sidebar ──────────────────────────────────────── */}
-      <div className="hidden lg:block shrink-0 w-[270px]" />
-      <aside
-        className="hidden lg:flex fixed top-3 left-3 bottom-3 z-50 w-[252px] flex-col bg-surface rounded-3xl sidebar-float transition-all duration-300"
-      >
+      <aside className="hidden lg:flex fixed top-4 left-4 bottom-4 z-40 w-[265px] flex-col rounded-3xl glass-panel p-4 overflow-hidden border border-border/70 shadow-2xl">
         {/* Brand Header */}
-        <div className="flex items-center gap-3.5 h-[72px] px-5 border-b border-border/60 shrink-0">
-          <div
-            className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-primary/20"
-            style={{ background: 'var(--gradient-primary)' }}
-          >
+        <div className="flex items-center gap-3 px-2 py-2 mb-4 shrink-0">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 shadow-md shadow-indigo-500/30">
             <CodeIcon className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="text-[15px] font-bold text-foreground tracking-tight truncate"
-                style={{ fontFamily: 'var(--font-heading)' }}
-              >
-                CodebyMiguel
-              </span>
-            </div>
+            <span className="text-base font-bold text-foreground tracking-tight truncate" style={{ fontFamily: 'var(--font-heading)' }}>
+              CodebyMiguel
+            </span>
             <span className="text-[11px] text-muted font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Pro Workspace
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Cloud Workspace
             </span>
           </div>
         </div>
 
         {/* Navigation list */}
-        <nav className="flex-1 overflow-y-auto px-3.5 py-5 space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted/60 px-3 mb-2.5">
+        <nav className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted/60 px-3 mb-2">
             Menu Utama
           </p>
           <ul className="space-y-1.5">
@@ -236,37 +226,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link
                     href={href}
                     className={`
-                      flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-[13px] font-medium
+                      flex items-center gap-3 px-3.5 py-3 rounded-2xl text-[13px] font-medium
                       transition-all duration-200 group relative
                       ${
                         active
-                          ? 'text-white shadow-md shadow-primary/20 font-semibold'
-                          : 'text-muted hover:text-foreground hover:bg-surface-hover'
+                          ? 'text-white shadow-lg shadow-indigo-500/25 font-semibold bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500'
+                          : 'text-muted hover:text-foreground hover:bg-surface-hover/80'
                       }
                     `}
-                    style={active ? { background: 'var(--gradient-primary)' } : {}}
                   >
                     <div
                       className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
                         active ? 'text-white' : 'text-muted group-hover:text-foreground'
                       }`}
                     >
-                      <Icon className="w-4.5 h-4.5" />
+                      <Icon className="w-5 h-5" />
                     </div>
                     <span className="flex-1 truncate">{label}</span>
 
                     {badge && (
                       <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
-                          active ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          active
+                            ? 'bg-white/20 text-white border border-white/30'
+                            : isHero
+                            ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
+                            : 'bg-primary/10 text-primary border border-primary/20'
                         }`}
                       >
                         {badge}
                       </span>
-                    )}
-
-                    {isHero && !active && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                     )}
                   </Link>
                 </li>
@@ -275,143 +264,172 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </ul>
         </nav>
 
-        {/* Sidebar bottom profile pill */}
-        <div className="p-3 border-t border-border/60 shrink-0">
-          <div className="p-2.5 rounded-2xl bg-surface-hover/70 border border-border/60 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white bg-primary shrink-0 overflow-hidden shadow-sm">
-              {user.avatar.length > 2 ? (
-                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+        {/* System Telemetry Capsule */}
+        <div className="my-3 p-3.5 rounded-2xl bg-surface/50 border border-border/60 text-xs space-y-2">
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-semibold">Security Shield</span>
+            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">Active</span>
+          </div>
+          <div className="w-full bg-border/40 h-1.5 rounded-full overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-500 to-cyan-500 h-full w-[94%]" />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted">
+            <span>Face AI Descriptors</span>
+            <span className="font-mono font-medium text-foreground">v0.22</span>
+          </div>
+        </div>
+
+        {/* User Profile Mini Bar */}
+        <div className="pt-2 border-t border-border/60">
+          <Link
+            href="/dashboard/profile"
+            className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface-hover transition-colors group"
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-md shrink-0 overflow-hidden">
+              {user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:')) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
               ) : (
-                user.avatar
+                user.avatar || 'MA'
               )}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-bold text-foreground truncate">{user.name}</p>
-              <p className="text-[10px] text-muted truncate">{user.role}</p>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-xs font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                {user.name}
+              </span>
+              <span className="text-[10px] text-muted truncate">{user.role || 'Super Admin'}</span>
             </div>
-            <button
-              onClick={() => logout()}
-              title="Keluar Akun"
-              className="p-1.5 rounded-xl text-muted hover:text-danger hover:bg-danger/10 transition-colors"
-            >
-              <LogoutIcon className="w-4 h-4" />
-            </button>
-          </div>
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-muted group-hover:text-foreground">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </div>
+          </Link>
         </div>
       </aside>
 
-      {/* ── Main Area ────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* ══════════ TOPBAR HEADER ══════════ */}
-        <header className="sticky top-2 sm:top-3 z-30 mx-2 sm:mx-4 rounded-2xl sm:rounded-3xl glass flex items-center justify-between px-3.5 sm:px-5 shrink-0 gap-3 h-[60px] sm:h-[64px] transition-all">
-          {/* Mobile Top Header */}
-          <div className="flex items-center gap-2.5 lg:hidden min-w-0">
-            <button
-              type="button"
-              onClick={() => setMobileDrawerOpen(true)}
-              className="relative flex items-center gap-2 p-1 rounded-2xl hover:bg-surface-hover transition-colors"
-            >
-              <div className="relative w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white bg-primary overflow-hidden shadow-sm">
-                {user.avatar.length > 2 ? (
-                  <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  user.avatar
-                )}
-                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-card" />
-              </div>
-              <div className="text-left leading-tight">
-                <span className="text-[13px] font-bold text-foreground flex items-center gap-1">
-                  Hai, {firstName}
-                  <span className="text-[12px]">✨</span>
-                </span>
-                <span className="text-[10px] text-muted font-medium block truncate max-w-[120px]">
-                  {pageInfo.title}
-                </span>
-              </div>
-            </button>
-          </div>
+      {/* ── Main Content Shell ────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-[295px] pb-32 lg:pb-8">
+        {/* Top Navbar */}
+        <header className="sticky top-0 z-30 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center justify-between glass-panel border-b border-border/60 backdrop-blur-xl">
+          {/* Left: Mobile Brand & Page Title */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="lg:hidden w-8.5 h-8.5 rounded-xl flex items-center justify-center bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 text-white shadow-md shadow-indigo-500/20 shrink-0">
+              <CodeIcon className="w-4.5 h-4.5" />
+            </div>
 
-          {/* Desktop Left: Breadcrumb */}
-          <div className="hidden lg:flex items-center gap-2.5 min-w-0">
-            <span className="text-xs font-semibold text-muted">Workspace</span>
-            <ChevronRightIcon className="w-3.5 h-3.5 text-muted/40" />
-            <h2
-              className="text-sm font-bold text-foreground truncate"
-              style={{ fontFamily: 'var(--font-heading)' }}
-            >
-              {pageInfo.title}
-            </h2>
-          </div>
-
-          {/* Desktop Center: Search bar */}
-          <div className="hidden md:flex flex-1 max-w-sm mx-auto">
-            <div className="relative w-full group">
-              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40 pointer-events-none group-focus-within:text-primary transition-colors" />
-              <input
-                id="topbar-search"
-                type="text"
-                value={searchVal}
-                onChange={(e) => setSearchVal(e.target.value)}
-                placeholder="Cari menu, catatan, agenda..."
-                className="w-full h-9.5 pl-10 pr-11 rounded-2xl text-[13px] bg-surface/80 border border-border/80 text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-foreground/20 transition-all duration-200"
-              />
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted/40 bg-surface-hover border border-border/70 px-1.5 py-0.5 rounded-md">
-                ⌘K
-              </kbd>
+            <div>
+              <div className="hidden sm:flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                <span>Workspace</span>
+                <span>/</span>
+                <span className="text-primary">{pageInfo.title}</span>
+              </div>
+              <h1 className="text-sm sm:text-xl font-extrabold tracking-tight text-foreground truncate max-w-[130px] sm:max-w-none" style={{ fontFamily: 'var(--font-heading)' }}>
+                {pageInfo.title}
+              </h1>
             </div>
           </div>
 
-          {/* Right Controls: Theme + Notifications + Profile */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Theme Toggle Pill */}
+          {/* Right: Clock, Theme Switch, Notification, Profile */}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            {/* Live Clock Pill */}
+            {time && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/70 border border-border/70 text-xs font-mono font-medium text-foreground">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>{time}</span>
+                <span className="text-[10px] text-muted font-sans font-semibold">WIB</span>
+              </div>
+            )}
+
+            {/* Theme Toggle Button */}
             <button
-              id="theme-toggle"
-              type="button"
               onClick={handleToggleTheme}
-              title={dark ? 'Mode Terang' : 'Mode Gelap'}
-              className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl text-muted hover:text-foreground hover:bg-surface-hover border border-transparent hover:border-border/60 transition-all"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center text-muted hover:text-foreground bg-surface/80 hover:bg-surface-hover border border-border/70 transition-all cursor-pointer shadow-sm"
+              title={dark ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
             >
-              {dark ? <SunIcon className="w-4.5 h-4.5 text-amber-400" /> : <MoonIcon className="w-4.5 h-4.5" />}
+              <AnimatePresence mode="wait" initial={false}>
+                {dark ? (
+                  <motion.div
+                    key="sun"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <SunIcon className="w-4.5 h-4.5 text-amber-400" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="moon"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <MoonIcon className="w-4.5 h-4.5 text-indigo-500" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </button>
 
-            {/* Notification Bell */}
+            {/* Notification Bell Dropdown */}
             <div className="relative" ref={notifRef}>
               <button
-                id="notifications-button"
-                type="button"
-                onClick={() => {
-                  setNotifOpen((o) => !o);
-                  setProfileOpen(false);
-                }}
-                className="relative p-2 sm:p-2.5 rounded-xl sm:rounded-2xl text-muted hover:text-foreground hover:bg-surface-hover border border-transparent hover:border-border/60 transition-all"
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center text-muted hover:text-foreground bg-surface/80 hover:bg-surface-hover border border-border/70 transition-all cursor-pointer relative shadow-sm"
               >
                 <BellIcon className="w-4.5 h-4.5" />
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary ring-2 ring-card" />
+                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-background" />
               </button>
 
-              {/* Notification Popover */}
               <AnimatePresence>
                 {notifOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-card border border-border rounded-3xl shadow-2xl overflow-hidden z-50"
+                    className="absolute right-[-10px] sm:right-0 mt-3 w-[min(340px,calc(100vw-2rem))] sm:w-96 rounded-3xl glass-panel p-4 shadow-2xl border border-border/80 z-50"
                   >
-                    <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between bg-surface-hover/50">
-                      <span className="text-xs font-bold text-foreground">Notifikasi</span>
-                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-                        1 Baru
+                    <div className="flex items-center justify-between pb-3 border-b border-border/60">
+                      <span className="font-bold text-sm text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
+                        Notifikasi & Update
+                      </span>
+                      <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                        3 Baru
                       </span>
                     </div>
-                    <div className="divide-y divide-border/50">
-                      <div className="p-3.5 hover:bg-surface-hover/50 transition-colors cursor-pointer flex gap-3 items-start">
-                        <span className="text-lg">⏰</span>
+                    <div className="py-2 divide-y divide-border/40 max-h-72 overflow-y-auto">
+                      <div className="py-2.5 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <AttendanceIcon className="w-4 h-4" />
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-foreground">Pengingat Absensi</p>
-                          <p className="text-[11px] text-muted mt-0.5">Jangan lupa lakukan absensi harian Anda hari ini.</p>
-                          <span className="text-[9px] text-muted/60 mt-1 inline-block">Baru saja</span>
+                          <p className="text-xs font-semibold text-foreground">Sistem Absensi Aktif</p>
+                          <p className="text-[11px] text-muted">Verifikasi biometrik siap digunakan hari ini.</p>
+                          <span className="text-[10px] text-muted/60 mt-1 block">Baru saja</span>
+                        </div>
+                      </div>
+
+                      <div className="py-2.5 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <SparklesIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-foreground">AI Agent Status OK</p>
+                          <p className="text-[11px] text-muted">Semua model AI terpantau normal tanpa kendala.</p>
+                          <span className="text-[10px] text-muted/60 mt-1 block">15m lalu</span>
+                        </div>
+                      </div>
+
+                      <div className="py-2.5 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <NoteIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-foreground">Sinkronisasi Cloud Aktif</p>
+                          <p className="text-[11px] text-muted">Catatan dan event tersimpan otomatis di Supabase.</p>
+                          <span className="text-[10px] text-muted/60 mt-1 block">1 jam lalu</span>
                         </div>
                       </div>
                     </div>
@@ -420,45 +438,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </AnimatePresence>
             </div>
 
-            {/* Desktop Profile Dropdown */}
-            <div className="hidden lg:block relative" ref={profileRef}>
+            {/* Profile Menu Dropdown */}
+            <div className="relative" ref={profileRef}>
               <button
-                id="profile-button"
-                type="button"
-                onClick={() => {
-                  setProfileOpen((o) => !o);
-                  setNotifOpen(false);
-                }}
-                className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-2xl hover:bg-surface-hover border border-transparent hover:border-border/60 transition-all"
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="flex items-center gap-2 pl-1 pr-1.5 sm:pr-2 py-1 rounded-2xl bg-surface/80 hover:bg-surface-hover border border-border/70 transition-all cursor-pointer shadow-sm"
               >
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white bg-primary overflow-hidden shadow-sm">
-                  {user.avatar.length > 2 ? (
-                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs text-white bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-sm overflow-hidden shrink-0">
+                  {user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:')) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                   ) : (
-                    user.avatar
+                    user.avatar || 'MA'
                   )}
                 </div>
-                <div className="text-left leading-tight">
-                  <p className="text-xs font-bold text-foreground">{user.name}</p>
-                  <p className="text-[10px] text-muted">{user.role}</p>
-                </div>
-                <ChevronRightIcon
-                  className={`w-3.5 h-3.5 text-muted transition-transform duration-200 ${
-                    profileOpen ? 'rotate-90' : ''
-                  }`}
-                />
+                <span className="hidden sm:inline text-xs font-bold text-foreground max-w-[100px] truncate">
+                  {firstName}
+                </span>
+                <svg className="w-3.5 h-3.5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
               </button>
 
               <AnimatePresence>
                 {profileOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-64 bg-card border border-border rounded-3xl shadow-2xl overflow-hidden z-50 p-2"
+                    className="absolute right-0 mt-3 w-60 max-w-[calc(100vw-2rem)] rounded-3xl glass-panel p-2 shadow-2xl border border-border/80 z-50"
                   >
-                    <div className="p-3 rounded-2xl bg-surface-hover/70 mb-1 border border-border/50">
+                    <div className="px-3 py-2.5 mb-1 border-b border-border/60">
                       <p className="text-xs font-bold text-foreground truncate">{user.name}</p>
                       <p className="text-[11px] text-muted truncate">{user.email}</p>
                     </div>
@@ -466,22 +477,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <Link
                       href="/dashboard/profile"
                       onClick={() => setProfileOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-foreground hover:bg-surface-hover transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-foreground hover:bg-surface-hover transition-colors"
                     >
-                      <AttendanceIcon className="w-4 h-4 text-primary" />
-                      <span>Edit Profil</span>
+                      <UserIcon className="w-4 h-4 text-muted" />
+                      <span>Pengaturan Profil</span>
                     </Link>
 
                     <button
-                      type="button"
                       onClick={() => {
                         setProfileOpen(false);
                         logout();
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-danger hover:bg-danger/10 transition-colors"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-danger hover:bg-danger/10 transition-colors mt-1 cursor-pointer"
                     >
                       <LogoutIcon className="w-4 h-4" />
-                      <span>Keluar Akun</span>
+                      <span>Keluar (Logout)</span>
                     </button>
                   </motion.div>
                 )}
@@ -490,158 +500,68 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        {/* ══════════ PAGE CONTENT ══════════ */}
-        {/* pb-28 gives ample room for the floating mobile bottom nav */}
-        <main className="flex-1 overflow-x-hidden p-3 sm:p-5 lg:p-6 pb-28 lg:pb-8">
+        {/* Content Body */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>
 
-      {/* ══════════ FLOATING MOBILE BOTTOM NAVIGATION ══════════ */}
-      {/* Eye-candy, glassmorphic, iOS-like floating bar for mobile */}
+      {/* ── Single Unified Mobile Floating Bottom Navigation ─────── */}
       <nav
-        aria-label="Mobile Navigation"
-        className="fixed bottom-3 inset-x-3 z-40 max-w-md mx-auto lg:hidden"
+        style={{ bottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+        className="lg:hidden fixed left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] sm:w-[calc(100%-3rem)] max-w-md z-40 rounded-3xl floating-bottom-nav px-2 py-2 flex items-center justify-between shadow-2xl border border-border/80"
       >
-        <div className="bottom-nav-glass rounded-3xl p-1.5 flex items-center justify-around shadow-2xl">
-          {NAV.map(({ label, shortLabel, href, icon: Icon, isHero }) => {
-            const active = pathname === href;
+        {NAV.map(({ shortLabel, href, icon: Icon, isHero }) => {
+          const active = pathname === href;
 
+          if (isHero) {
             return (
               <Link
                 key={href}
                 href={href}
-                className="relative flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all select-none group"
+                className="flex-1 flex flex-col items-center group relative -mt-6"
               >
-                {/* Active Indicator Capsule */}
-                {active && (
-                  <motion.div
-                    layoutId="mobileActivePill"
-                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-                    className="absolute inset-0 rounded-2xl bg-primary/15 dark:bg-primary/20 border border-primary/20"
-                  />
-                )}
-
-                {/* Icon wrapper */}
                 <div
-                  className={`relative z-10 transition-transform duration-200 ${
-                    active ? 'scale-110 text-primary' : 'text-muted group-hover:text-foreground'
+                  className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all shadow-xl ${
+                    active
+                      ? 'bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 text-white shadow-indigo-500/40 ring-4 ring-background scale-105'
+                      : 'bg-gradient-to-tr from-indigo-500 to-cyan-500 text-white shadow-indigo-500/30 ring-4 ring-background hover:scale-105'
                   }`}
                 >
-                  {isHero && !active ? (
-                    <div className="relative">
-                      <Icon className="w-5 h-5" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-card animate-pulse" />
-                    </div>
-                  ) : (
-                    <Icon className="w-5 h-5" />
-                  )}
+                  <Icon className="w-6 h-6" />
                 </div>
-
-                {/* Text Label */}
-                <span
-                  className={`relative z-10 text-[10px] font-bold tracking-tight mt-0.5 transition-colors duration-200 ${
-                    active ? 'text-primary' : 'text-muted/70 group-hover:text-foreground'
-                  }`}
-                >
+                <span className={`text-[10px] font-bold mt-1 tracking-tight ${active ? 'text-primary' : 'text-muted'}`}>
                   {shortLabel}
                 </span>
               </Link>
             );
-          })}
-        </div>
-      </nav>
+          }
 
-      {/* ══════════ MOBILE PROFILE DRAWER ══════════ */}
-      <AnimatePresence>
-        {mobileDrawerOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileDrawerOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-
-            {/* Bottom Sheet */}
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-              className="absolute bottom-0 inset-x-0 bg-card rounded-t-3xl border-t border-border p-6 shadow-2xl max-w-md mx-auto"
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex-1 flex flex-col items-center gap-1 py-1 rounded-2xl transition-all relative ${
+                active ? 'text-primary font-bold' : 'text-muted hover:text-foreground'
+              }`}
             >
-              {/* Drag handle */}
-              <div className="w-10 h-1 rounded-full bg-muted/30 mx-auto mb-5" />
-
-              <div className="flex items-center gap-3.5 mb-6">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shrink-0 overflow-hidden shadow-md"
-                  style={{ background: 'var(--gradient-primary)' }}
-                >
-                  {user.avatar.length > 2 ? (
-                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    user.avatar
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-base font-bold text-foreground truncate">{user.name}</h4>
-                  <p className="text-xs text-muted truncate">{user.email}</p>
-                  <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                    {user.role}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                <Link
-                  href="/dashboard/profile"
-                  onClick={() => setMobileDrawerOpen(false)}
-                  className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-hover/80 border border-border/60 text-xs font-semibold text-foreground active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                      <AttendanceIcon className="w-4 h-4" />
-                    </div>
-                    <span>Pengaturan Profil</span>
-                  </div>
-                  <ChevronRightIcon className="w-4 h-4 text-muted" />
-                </Link>
-
-                <div
-                  onClick={handleToggleTheme}
-                  className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-hover/80 border border-border/60 text-xs font-semibold text-foreground cursor-pointer active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                      {dark ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
-                    </div>
-                    <span>{dark ? 'Mode Gelap (Aktif)' : 'Mode Terang (Aktif)'}</span>
-                  </div>
-                  <span className="text-[10px] text-muted font-bold px-2 py-1 rounded-lg bg-surface border border-border">
-                    Ubah
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileDrawerOpen(false);
-                  logout();
-                }}
-                className="w-full py-3 rounded-2xl bg-danger/10 text-danger font-semibold text-xs flex items-center justify-center gap-2 hover:bg-danger/20 active:scale-[0.98] transition-all"
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                  active
+                    ? 'bg-primary/10 text-primary font-bold'
+                    : 'text-muted group-hover:text-foreground'
+                }`}
               >
-                <LogoutIcon className="w-4 h-4" />
-                <span>Keluar dari Akun</span>
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <Icon className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] tracking-tight">{shortLabel}</span>
+              {active && (
+                <span className="w-1 h-1 rounded-full bg-primary absolute bottom-0.5" />
+              )}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

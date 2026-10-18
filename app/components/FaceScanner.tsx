@@ -353,13 +353,13 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-3xl p-5 sm:p-6 shadow-2xl max-w-md w-full relative overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-background/80 backdrop-blur-md p-3 sm:p-4">
+      <div className="glass-panel border border-border/80 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-md w-full relative overflow-y-auto max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/20 shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -369,8 +369,10 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground">Verifikasi Wajah</h3>
-              <p className="text-[11px] text-muted">Pastikan wajah terlihat jelas</p>
+              <h3 className="text-sm sm:text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
+                Verifikasi Biometrik Wajah
+              </h3>
+              <p className="text-[11px] text-muted">Arahkan pandangan tepat ke kamera</p>
             </div>
           </div>
 
@@ -379,7 +381,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
             <button
               type="button"
               onClick={handleToggleCamera}
-              className="p-2 rounded-xl bg-surface-hover hover:bg-border text-foreground transition-colors flex items-center gap-1.5 text-xs font-medium border border-border"
+              className="p-2 sm:p-2.5 rounded-xl bg-surface-hover hover:bg-border text-foreground transition-colors flex items-center gap-1.5 text-xs font-semibold border border-border/80 cursor-pointer shrink-0"
               title="Ganti Kamera Depan/Belakang"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -396,7 +398,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         </div>
 
         {/* Video & Scanner Container */}
-        <div className="relative w-full aspect-square bg-black rounded-2xl overflow-hidden mb-3 border border-border/50 shadow-inner">
+        <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden mb-3 border border-indigo-500/30 shadow-inner">
           <video
             ref={videoRef}
             autoPlay
@@ -414,14 +416,17 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
             }`}
           />
 
+          {/* Futuristic laser scanline */}
+          <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#06b6d4] animate-laser z-25 pointer-events-none" />
+
           {/* Silhouette Face Guide Oval */}
           {isCameraActive && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-25">
               <div
-                className={`w-44 h-56 sm:w-52 sm:h-68 rounded-[50%] border-2 transition-all duration-300 ${
+                className={`w-38 h-48 sm:w-50 sm:h-64 rounded-[50%] border-2 transition-all duration-300 ${
                   validProgress > 0
-                    ? 'border-emerald-500 shadow-[0_0_24px_rgba(16,185,129,0.5)] scale-102 bg-emerald-500/5'
-                    : 'border-white/30 border-dashed'
+                    ? 'border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.7)] scale-102 bg-emerald-500/10'
+                    : 'border-cyan-400/50 border-dashed shadow-[0_0_20px_rgba(6,182,212,0.3)]'
                 }`}
               />
             </div>

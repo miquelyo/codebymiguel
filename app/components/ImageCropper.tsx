@@ -1,12 +1,14 @@
 'use client';
+
 import { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface Point {
   x: number;
   y: number;
 }
+
 interface Area {
   width: number;
   height: number;
@@ -29,55 +31,34 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     image.src = url;
   });
 
-export async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: Area,
-  rotation = 0,
-  flip = { horizontal: false, vertical: false }
-): Promise<File | null> {
+async function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<File | null> {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
-  if (!ctx) {
-    return null;
-  }
+  if (!ctx) return null;
 
-  // set canvas size to match the bounding box
-  canvas.width = image.width;
-  canvas.height = image.height;
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
 
-  // translate canvas context to a central location to allow rotating and flipping around the center
-  ctx.translate(image.width / 2, image.height / 2);
-  ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
-  ctx.translate(-image.width / 2, -image.height / 2);
-
-  // draw image
-  ctx.drawImage(image, 0, 0);
-
-  // extract the cropped image
-  const data = ctx.getImageData(
+  ctx.drawImage(
+    image,
     pixelCrop.x,
     pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
     pixelCrop.width,
     pixelCrop.height
   );
 
-  // set canvas width to final desired crop size - this will clear existing context
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-
-  // paste generated rotate image at the top left corner
-  ctx.putImageData(data, 0, 0);
-
   return new Promise((resolve) => {
-    canvas.toBlob((file) => {
-      if (file) {
-        resolve(new File([file], 'avatar.jpg', { type: 'image/jpeg' }));
-      } else {
-        resolve(null);
-      }
-    }, 'image/jpeg');
+    canvas.toBlob((blob) => {
+      if (!blob) return resolve(null);
+      const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+      resolve(file);
+    }, 'image/jpeg', 0.9);
   });
 }
 
@@ -86,7 +67,7 @@ export default function ImageCropper({ imageSrc, onCropDone, onCancel }: ImageCr
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
-  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
+  const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 
@@ -103,23 +84,35 @@ export default function ImageCropper({ imageSrc, onCropDone, onCancel }: ImageCr
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-background/80 backdrop-blur-md"
         onClick={onCancel}
       />
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="relative w-full max-w-lg bg-card rounded-3xl p-6 shadow-2xl border border-border flex flex-col"
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        className="relative w-full max-w-md bg-card rounded-3xl p-6 shadow-2xl border border-border/80 flex flex-col z-10"
       >
-        <h3 className="text-xl font-bold text-foreground mb-4" style={{ fontFamily: 'var(--font-heading)' }}>Sesuaikan Gambar</h3>
-        
-        <div className="relative w-full h-[300px] bg-black rounded-xl overflow-hidden mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
+            Sesuaikan Foto Profil
+          </h3>
+          <button
+            onClick={onCancel}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="relative w-full h-[280px] bg-slate-950 rounded-2xl overflow-hidden mb-5 border border-border shadow-inner">
           <Cropper
             image={imageSrc}
             crop={crop}
@@ -133,32 +126,37 @@ export default function ImageCropper({ imageSrc, onCropDone, onCancel }: ImageCr
           />
         </div>
 
-        <div className="mb-6">
-          <label className="text-xs font-semibold text-muted block mb-2">Zoom</label>
+        <div className="mb-5 space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span className="font-semibold">Skala Zoom</span>
+            <span className="font-mono">{zoom.toFixed(1)}x</span>
+          </div>
           <input
             type="range"
             value={zoom}
             min={1}
             max={3}
             step={0.1}
-            aria-labelledby="Zoom"
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-primary"
+            className="w-full accent-primary h-1.5 bg-border rounded-lg cursor-pointer"
           />
         </div>
 
-        <div className="flex gap-3">
-          <button 
+        <div className="flex gap-2.5">
+          <button
+            type="button"
             onClick={onCancel}
-            className="flex-1 h-11 rounded-xl font-semibold text-foreground bg-surface-hover hover:bg-border transition-colors"
+            className="flex-1 h-11 rounded-xl text-xs font-semibold text-foreground bg-surface-hover hover:bg-border/60 border border-border/80 transition-colors cursor-pointer"
           >
             Batal
           </button>
-          <button 
+          <button
+            type="button"
             onClick={handleDone}
-            className="flex-1 h-11 rounded-xl font-semibold text-white bg-primary hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all"
+            className="flex-1 h-11 rounded-xl text-xs font-bold text-white shadow-lg shadow-indigo-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+            style={{ background: 'var(--gradient-primary)' }}
           >
-            Terapkan
+            Terapkan Foto
           </button>
         </div>
       </motion.div>

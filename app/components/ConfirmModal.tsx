@@ -1,4 +1,5 @@
 'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ConfirmModalProps {
@@ -13,48 +14,51 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-background/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-background/80 backdrop-blur-md"
             onClick={onCancel}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl border border-border"
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            className="relative w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl border border-border/80 z-10"
           >
-            <div className="w-12 h-12 rounded-2xl bg-danger/10 text-danger flex items-center justify-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-danger/10 text-danger flex items-center justify-center mb-4 border border-danger/20 shadow-sm">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            
-            <h3 className="text-xl font-bold text-foreground mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+
+            <h3 className="text-lg font-bold text-foreground mb-1.5" style={{ fontFamily: 'var(--font-heading)' }}>
               {title}
             </h3>
-            <p className="text-sm text-muted mb-6 leading-relaxed">
+            <p className="text-xs text-muted mb-6 leading-relaxed">
               {message}
             </p>
-            
-            <div className="flex gap-3">
-              <button 
+
+            <div className="flex gap-2.5">
+              <button
+                type="button"
                 onClick={onCancel}
-                className="flex-1 h-11 rounded-xl font-semibold text-foreground bg-surface-hover hover:bg-border transition-colors"
+                className="flex-1 h-11 rounded-xl text-xs font-semibold text-foreground bg-surface-hover hover:bg-border/60 border border-border/80 transition-colors cursor-pointer"
               >
                 Batal
               </button>
-              <button 
+              <button
+                type="button"
                 onClick={() => {
                   onConfirm();
-                  onCancel(); // auto close
+                  onCancel();
                 }}
-                className="flex-1 h-11 rounded-xl font-semibold text-white bg-danger hover:bg-danger/90 shadow-lg shadow-danger/20 transition-all"
+                className="flex-1 h-11 rounded-xl text-xs font-bold text-white bg-danger hover:bg-danger/90 shadow-lg shadow-danger/25 active:scale-[0.98] transition-all cursor-pointer"
               >
-                Ya, Hapus
+                Ya, Lanjutkan
               </button>
             </div>
           </motion.div>

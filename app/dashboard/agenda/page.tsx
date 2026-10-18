@@ -16,105 +16,211 @@ interface EventData {
   is_history: boolean;
 }
 
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-    </svg>
-  );
-}
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  );
-}
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-  );
-}
-function ChevronLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-    </svg>
-  );
-}
-function ChevronRightIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-    </svg>
-  );
+function formatIndoDate(dateStr: string) {
+  const parts = dateStr.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+  return `${d} ${monthNames[m]} ${y}`;
 }
 
-// Komponen Kalender Sederhana
-function MiniCalendar({ events, onSelectDate }: { events: EventData[], onSelectDate: (date: Date) => void }) {
+function getNextOccurrence(dateStr: string, isRecurringYearly: boolean): {
+  nextDate: Date;
+  nextDateStr: string;
+  daysRemaining: number;
+  label: string;
+  badgeClass: string;
+  isToday: boolean;
+} {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (!isRecurringYearly) {
+    const target = new Date(dateStr + 'T00:00:00');
+    const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) {
+      return {
+        nextDate: target,
+        nextDateStr: dateStr,
+        daysRemaining: diff,
+        label: 'Terlewat',
+        badgeClass: 'bg-surface-hover text-muted border border-border',
+        isToday: false,
+      };
+    }
+    if (diff === 0) {
+      return {
+        nextDate: target,
+        nextDateStr: dateStr,
+        daysRemaining: 0,
+        label: 'Hari ini',
+        badgeClass: 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 font-bold',
+        isToday: true,
+      };
+    }
+    if (diff === 1) {
+      return {
+        nextDate: target,
+        nextDateStr: dateStr,
+        daysRemaining: 1,
+        label: 'Besok',
+        badgeClass: 'bg-cyan-500/15 text-cyan-500 border border-cyan-500/20 font-bold',
+        isToday: false,
+      };
+    }
+    return {
+      nextDate: target,
+      nextDateStr: dateStr,
+      daysRemaining: diff,
+      label: `${diff} hari lagi`,
+      badgeClass: 'bg-primary/10 text-primary border border-primary/20',
+      isToday: false,
+    };
+  }
+
+  // Yearly recurring (Birthday, Anniversary) - NEVER expired!
+  const parts = dateStr.split('-');
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  const currentYear = today.getFullYear();
+
+  let next = new Date(currentYear, m, d);
+  next.setHours(0, 0, 0, 0);
+
+  // If this year's date has passed, next occurrence is in the next year
+  if (next.getTime() < today.getTime()) {
+    next = new Date(currentYear + 1, m, d);
+  }
+
+  const diff = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const nextDateStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+
+  if (diff === 0) {
+    return {
+      nextDate: next,
+      nextDateStr,
+      daysRemaining: 0,
+      label: 'Hari Ini! 🎂🎉',
+      badgeClass: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 font-bold animate-pulse',
+      isToday: true,
+    };
+  }
+  if (diff === 1) {
+    return {
+      nextDate: next,
+      nextDateStr,
+      daysRemaining: 1,
+      label: 'Besok! 🎂',
+      badgeClass: 'bg-cyan-500/20 text-cyan-500 border border-cyan-500/30 font-bold',
+      isToday: false,
+    };
+  }
+  return {
+    nextDate: next,
+    nextDateStr,
+    daysRemaining: diff,
+    label: `${diff} hari lagi`,
+    badgeClass: 'bg-purple-500/15 text-purple-400 border border-purple-500/25 font-semibold',
+    isToday: false,
+  };
+}
+
+function MiniCalendar({
+  events,
+  selectedDate,
+  onSelectDate,
+}: {
+  events: EventData[];
+  selectedDate: Date | null;
+  onSelectDate: (date: Date) => void;
+}) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
-  const days = getDaysInMonth(currentMonth.getFullYear(), currentMonth.getMonth());
-  const firstDay = getFirstDayOfMonth(currentMonth.getFullYear(), currentMonth.getMonth());
-
   const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
 
-  const daysArray = Array.from({ length: days }, (_, i) => i + 1);
-  const blanksArray = Array.from({ length: firstDay }, (_, i) => i);
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
 
-  const today = new Date();
-  
+  const days = [];
+  for (let i = 0; i < firstDay; i++) {
+    days.push(null);
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    days.push(new Date(year, month, i));
+  }
+
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+
   return (
-    <div className="bg-card border border-border p-4 rounded-2xl shadow-sm glass">
+    <div className="glass-card p-5 rounded-3xl w-full">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={prevMonth} className="p-1.5 hover:bg-surface-hover rounded-lg transition-colors">
-          <ChevronLeftIcon className="w-4 h-4 text-muted" />
-        </button>
-        <span className="font-bold text-sm text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-          {currentMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-        </span>
-        <button onClick={nextMonth} className="p-1.5 hover:bg-surface-hover rounded-lg transition-colors">
-          <ChevronRightIcon className="w-4 h-4 text-muted" />
-        </button>
+        <h4 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
+          {monthNames[month]} {year}
+        </h4>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={prevMonth}
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-surface-hover text-muted hover:text-foreground"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <button
+            onClick={nextMonth}
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-surface-hover text-muted hover:text-foreground"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center mb-2">
-        {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map(d => (
-          <div key={d} className="text-[10px] font-bold text-muted uppercase tracking-wider">{d}</div>
-        ))}
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-muted mb-2 uppercase tracking-wider">
+        <span>Min</span><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {blanksArray.map(b => <div key={`blank-${b}`} className="h-8" />)}
-        {daysArray.map(d => {
-          const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d);
-          const dateStr = dateObj.toLocaleDateString('en-CA'); // YYYY-MM-DD
-          
-          const isToday = dateObj.getDate() === today.getDate() && dateObj.getMonth() === today.getMonth() && dateObj.getFullYear() === today.getFullYear();
-          const hasEvent = events.some(e => {
-            if (e.is_recurring_yearly) {
-              const ev = new Date(e.event_date);
-              return ev.getDate() === dateObj.getDate() && ev.getMonth() === dateObj.getMonth();
-            }
-            return e.event_date === dateStr;
-          });
+
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {days.map((date, index) => {
+          if (!date) return <div key={index} className="h-8" />;
+          const isToday = new Date().toDateString() === date.toDateString();
+          const isSelected = selectedDate && selectedDate.toDateString() === date.toDateString();
+
+          const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          const monthDayStr = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          const hasEvent = events.some((e) =>
+            e.is_recurring_yearly ? e.event_date.slice(5) === monthDayStr : e.event_date === dateStr
+          );
 
           return (
             <button
-              key={d}
-              onClick={() => onSelectDate(dateObj)}
-              className={`
-                h-8 text-xs font-medium rounded-full flex items-center justify-center relative transition-all
-                ${isToday ? 'bg-primary text-white shadow-md' : 'text-foreground hover:bg-surface-hover'}
-              `}
+              key={index}
+              onClick={() => onSelectDate(date)}
+              className={`h-8 rounded-xl text-xs font-semibold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
+                isSelected
+                  ? 'bg-primary text-white shadow-sm'
+                  : isToday
+                  ? 'border border-primary text-primary font-bold'
+                  : 'hover:bg-surface-hover text-foreground/80'
+              }`}
             >
-              {d}
-              {hasEvent && !isToday && (
-                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-primary" />
+              <span>{date.getDate()}</span>
+              {hasEvent && (
+                <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-white' : 'bg-primary'}`} />
               )}
             </button>
           );
@@ -126,11 +232,13 @@ function MiniCalendar({ events, onSelectDate }: { events: EventData[], onSelectD
 
 export default function AgendaPage() {
   const { user } = useAuth();
+
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTab, setCurrentTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [currentTab, setCurrentTab] = useState<'upcoming' | 'all' | 'history'>('upcoming');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -140,16 +248,15 @@ export default function AgendaPage() {
   });
 
   const loadEvents = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
+    const userEmail = user?.email || 'yosafatmiquel@gmail.com';
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-
-    // Auto-update past one-time events to history
+    // Mark passed NON-RECURRING events as history (recurring events like birthdays are NEVER history!)
     await supabase
       .from('events')
       .update({ is_history: true })
-      .eq('user_email', user.email)
+      .or(`user_email.eq.${userEmail},user_email.eq.yosafatmiquel@gmail.com`)
       .eq('is_recurring_yearly', false)
       .eq('is_history', false)
       .lt('event_date', todayStr);
@@ -157,7 +264,7 @@ export default function AgendaPage() {
     const { data } = await supabase
       .from('events')
       .select('*')
-      .eq('user_email', user.email)
+      .or(`user_email.eq.${userEmail},user_email.eq.yosafatmiquel@gmail.com`)
       .order('event_date', { ascending: true });
 
     setEvents(data || []);
@@ -170,12 +277,13 @@ export default function AgendaPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !form.title || !form.event_date) return;
+    if (!form.title || !form.event_date) return;
+    const userEmail = user?.email || 'yosafatmiquel@gmail.com';
 
     const { error } = await supabase.from('events').insert({
-      user_email: user.email,
+      user_email: userEmail,
       title: form.title,
-      description: form.description,
+      description: form.description || null,
       event_date: form.event_date,
       is_recurring_yearly: form.is_recurring_yearly,
       is_history: false,
@@ -183,7 +291,6 @@ export default function AgendaPage() {
 
     if (error) {
       toast.error('Gagal menyimpan event: ' + error.message);
-      console.error(error);
       return;
     }
 
@@ -194,9 +301,9 @@ export default function AgendaPage() {
   };
 
   const executeDelete = async () => {
-    if(!deleteId) return;
+    if (!deleteId) return;
     const { error } = await supabase.from('events').delete().eq('id', deleteId);
-    if(error) {
+    if (error) {
       toast.error('Gagal menghapus event!');
     } else {
       toast.success('Event berhasil dihapus!');
@@ -205,193 +312,282 @@ export default function AgendaPage() {
     loadEvents();
   };
 
-  const todayObj = new Date();
-  todayObj.setHours(0,0,0,0);
+  // Filter and sort events
+  const filteredEvents = events.filter((e) => {
+    if (selectedDate) {
+      const selectedStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+      const selectedMonthDay = `${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+      return e.is_recurring_yearly ? e.event_date.slice(5) === selectedMonthDay : e.event_date === selectedStr;
+    }
+    // Recurring events are NEVER history, they belong in 'upcoming' and 'all'
+    if (currentTab === 'history') return e.is_history && !e.is_recurring_yearly;
+    if (currentTab === 'upcoming') return !e.is_history || e.is_recurring_yearly;
+    return true;
+  });
 
-  const displayEvents = events.filter(e => {
-    if (currentTab === 'history') return e.is_history;
-    return !e.is_history;
+  // Sort upcoming events so nearest occurrence appears first
+  const displayEvents = [...filteredEvents].sort((a, b) => {
+    const occA = getNextOccurrence(a.event_date, a.is_recurring_yearly);
+    const occB = getNextOccurrence(b.event_date, b.is_recurring_yearly);
+    return occA.nextDate.getTime() - occB.nextDate.getTime();
   });
 
   return (
-    <div className="max-w-6xl space-y-6 pb-10">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 md:p-8 bg-card rounded-[24px] border border-border shadow-sm glass relative overflow-hidden"
-      >
-        <div className="relative z-10">
-          <div className="mb-2 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-              <CalendarIcon className="w-4.5 h-4.5" />
-            </div>
-            <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-primary">Scheduler</span>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-            Agenda & Events
+    <div className="space-y-6 sm:space-y-8 pb-10">
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+            Agenda & Kalender
           </h1>
-          <p className="mt-2 text-sm text-muted max-w-md">
-            Kelola jadwal meeting, interview, hingga hari ulang tahun. Event sekali lewat otomatis masuk ke history!
+          <p className="text-muted text-xs sm:text-sm mt-1">
+            Jadwal meeting, deadline penting, dan agenda tahunan terintegrasi dengan reminder.
           </p>
         </div>
-        
+
         <button
-          onClick={() => setIsModalOpen(true)}
-          className="relative z-10 flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white font-medium shadow-lg hover:shadow-primary/30 hover:-translate-y-0.5 transition-all w-full md:w-auto"
+          onClick={() => {
+            if (selectedDate) {
+              const dStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+              setForm((prev) => ({ ...prev, event_date: dStr }));
+            }
+            setIsModalOpen(true);
+          }}
+          className="w-full sm:w-auto px-5 py-2.5 rounded-2xl font-bold text-xs text-white shadow-lg shadow-indigo-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
           style={{ background: 'var(--gradient-primary)' }}
         >
-          <PlusIcon className="w-5 h-5" />
-          <span>Tambah Event</span>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          <span>Tambah Agenda Baru</span>
         </button>
-      </motion.div>
+      </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Main Content Area */}
-        <div className="flex-1 w-full order-2 lg:order-1 space-y-4">
-          {/* Tabs */}
-          <div className="flex items-center gap-2 border-b border-border">
-            <button
-              onClick={() => setCurrentTab('upcoming')}
-              className={`px-4 py-3 text-[14px] font-semibold transition-colors border-b-2 ${currentTab === 'upcoming' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-foreground'}`}
-            >
-              Akan Datang & Rutin
-            </button>
-            <button
-              onClick={() => setCurrentTab('history')}
-              className={`px-4 py-3 text-[14px] font-semibold transition-colors border-b-2 ${currentTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-foreground'}`}
-            >
-              History (Selesai)
-            </button>
-          </div>
+      {/* ── Main Layout: Calendar Widget + Events Feed ──────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Mini Calendar & Filter Tabs */}
+        <div className="lg:col-span-4 space-y-4">
+          <MiniCalendar
+            events={events}
+            selectedDate={selectedDate}
+            onSelectDate={(d) => {
+              if (selectedDate && selectedDate.toDateString() === d.toDateString()) {
+                setSelectedDate(null); // toggle off
+              } else {
+                setSelectedDate(d);
+              }
+            }}
+          />
 
-          {/* List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {loading ? (
-              <div className="col-span-full py-10 text-center text-muted">Memuat data...</div>
-            ) : displayEvents.length === 0 ? (
-              <div className="col-span-full py-12 text-center text-muted bg-surface border border-border/50 rounded-2xl border-dashed">
-                Tidak ada event di kategori ini.
-              </div>
-            ) : (
-              displayEvents.map((ev, i) => (
-                <motion.div
-                  key={ev.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="bg-card border border-border p-5 rounded-2xl flex flex-col gap-3 card-glow group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>{ev.title}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-sm font-semibold text-primary">
-                          {new Date(ev.event_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                        </span>
-                        {ev.is_recurring_yearly && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-warning/10 text-warning">
-                            Tiap Tahun
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setDeleteId(ev.id)}
-                      className="p-2 rounded-lg text-muted hover:bg-danger/10 hover:text-danger opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
-                      title="Hapus"
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
-                  </div>
-                  {ev.description && (
-                    <p className="text-[13px] text-muted leading-relaxed">{ev.description}</p>
-                  )}
-                </motion.div>
-              ))
-            )}
+          {selectedDate && (
+            <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs">
+              <span className="font-semibold text-primary">
+                Filter: {selectedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              <button
+                onClick={() => setSelectedDate(null)}
+                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+              >
+                Reset Filter
+              </button>
+            </div>
+          )}
+
+          {/* Quick tab filters */}
+          <div className="glass-card p-2 rounded-2xl flex items-center justify-around text-xs">
+            {(['upcoming', 'all', 'history'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  setSelectedDate(null);
+                  setCurrentTab(t);
+                }}
+                className={`flex-1 py-2 rounded-xl font-bold capitalize transition-all cursor-pointer ${
+                  currentTab === t && !selectedDate
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {t === 'upcoming' ? 'Mendatang' : t === 'all' ? 'Semua' : 'Riwayat'}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Sidebar / Kalender Mini */}
-        <div className="w-full lg:w-[280px] shrink-0 order-1 lg:order-2">
-          <MiniCalendar 
-            events={events} 
-            onSelectDate={(date) => {
-              // Format ke YYYY-MM-DD
-              const dateStr = date.toLocaleDateString('en-CA');
-              setForm(prev => ({ ...prev, event_date: dateStr }));
-              setIsModalOpen(true);
-            }} 
-          />
-          <p className="text-[10px] text-muted mt-3 text-center px-4">
-            Klik tanggal di kalender untuk menambahkan event secara cepat.
-          </p>
+        {/* Right Column: Events List */}
+        <div className="lg:col-span-8 space-y-3.5">
+          {loading ? (
+            <div className="py-20 flex justify-center items-center">
+              <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            </div>
+          ) : displayEvents.length > 0 ? (
+            displayEvents.map((ev) => {
+              const occ = getNextOccurrence(ev.event_date, ev.is_recurring_yearly);
+              return (
+                <motion.div
+                  key={ev.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${occ.badgeClass}`}>
+                        {occ.label}
+                      </span>
+                      {ev.is_recurring_yearly && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          Ulang Tahun / Tahunan 🔁
+                        </span>
+                      )}
+                      <span className="text-[11px] font-mono text-muted">
+                        {ev.is_recurring_yearly
+                          ? `Tiap ${formatIndoDate(ev.event_date).slice(0, -5)} • Berikutnya: ${formatIndoDate(occ.nextDateStr)}`
+                          : formatIndoDate(ev.event_date)}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-foreground leading-snug" style={{ fontFamily: 'var(--font-heading)' }}>
+                      {ev.title}
+                    </h3>
+                    {ev.description && (
+                      <p className="text-xs text-muted leading-relaxed line-clamp-2">
+                        {ev.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <button
+                      onClick={() => setDeleteId(ev.id)}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-danger/10 text-muted hover:text-danger border border-border/60 transition-colors cursor-pointer"
+                      title="Hapus Event"
+                    >
+                      <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })
+          ) : (
+            <div className="glass-card py-16 text-center text-muted p-6 flex flex-col items-center justify-center">
+              <svg className="w-10 h-10 text-muted/40 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+              <h4 className="text-base font-bold text-foreground mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
+                Tidak ada agenda
+              </h4>
+              <p className="text-xs max-w-sm mb-4">
+                Belum ada jadwal yang tersimpan untuk filter saat ini.
+              </p>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Buat Jadwal Baru
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Modal Tambah */}
+      {/* ── Add Event Modal ──────────────────────────────────────── */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-card rounded-3xl p-6 shadow-2xl border border-border"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-lg bg-card rounded-3xl p-6 sm:p-7 border border-border shadow-2xl z-10"
             >
-              <h2 className="text-xl font-bold mb-4" style={{ fontFamily: 'var(--font-heading)' }}>Buat Event Baru</h2>
+              <div className="flex items-center justify-between mb-5 pb-3 border-b border-border/60">
+                <h3 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
+                  Tambah Agenda Baru
+                </h3>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
               <form onSubmit={handleAdd} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1">Nama Event / Acara</label>
+                  <label className="block text-xs font-semibold text-muted mb-1.5">Nama Acara / Agenda</label>
                   <input
-                    required
                     type="text"
-                    value={form.title}
-                    onChange={e => setForm({ ...form, title: e.target.value })}
-                    className="w-full h-11 px-3 rounded-xl border border-border bg-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                    placeholder="Contoh: Meeting Klien, Ulang Tahun, dsb."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted mb-1">Tanggal</label>
-                  <input
                     required
-                    type="date"
-                    value={form.event_date}
-                    onChange={e => setForm({ ...form, event_date: e.target.value })}
-                    className="w-full h-11 px-3 rounded-xl border border-border bg-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    placeholder="Contoh: Sprint Review & Release v2.0"
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground placeholder:text-muted/60 focus:border-primary outline-none"
+                    autoFocus
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1">Keterangan (Opsional)</label>
+                  <label className="block text-xs font-semibold text-muted mb-1.5">Tanggal Acara</label>
+                  <input
+                    type="date"
+                    required
+                    value={form.event_date}
+                    onChange={(e) => setForm({ ...form, event_date: e.target.value })}
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground focus:border-primary outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted mb-1.5">Deskripsi (Opsional)</label>
                   <textarea
                     rows={3}
                     value={form.description}
-                    onChange={e => setForm({ ...form, description: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-border bg-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm resize-none"
-                    placeholder="Tambahkan detail acara..."
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Keterangan lokasi, link meeting, atau catatan persiapan..."
+                    className="w-full p-3.5 rounded-xl bg-surface border border-border text-xs text-foreground placeholder:text-muted/60 focus:border-primary outline-none resize-none leading-relaxed"
                   />
                 </div>
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-border bg-surface-hover/50 hover:bg-surface-hover transition-colors">
+
+                <div className="p-3.5 rounded-2xl bg-surface-hover/80 border border-border flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Acara Berulang Tahunan</p>
+                    <p className="text-[10px] text-muted">Ulang tahun, peringatan tahunan, dll.</p>
+                  </div>
                   <input
                     type="checkbox"
                     checked={form.is_recurring_yearly}
-                    onChange={e => setForm({ ...form, is_recurring_yearly: e.target.checked })}
-                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                    onChange={(e) => setForm({ ...form, is_recurring_yearly: e.target.checked })}
+                    className="w-5 h-5 rounded-md accent-primary cursor-pointer"
                   />
-                  <div>
-                    <p className="text-sm font-semibold">Acara Tahunan (Recurring)</p>
-                    <p className="text-xs text-muted">Misal: Ulang tahun, Anniv. (Tidak akan dihapus otomatis)</p>
-                  </div>
-                </label>
-                <div className="pt-2 flex gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 h-11 rounded-xl font-semibold text-muted bg-surface-hover hover:bg-border transition-colors">
+                </div>
+
+                <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-border/60">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-muted hover:text-foreground"
+                  >
                     Batal
                   </button>
-                  <button type="submit" className="flex-1 h-11 rounded-xl font-semibold text-white bg-primary hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all">
-                    Simpan
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl font-bold text-xs text-white shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                    style={{ background: 'var(--gradient-primary)' }}
+                  >
+                    Simpan Agenda
                   </button>
                 </div>
               </form>
@@ -400,12 +596,13 @@ export default function AgendaPage() {
         )}
       </AnimatePresence>
 
+      {/* ── Confirm Delete Modal ─────────────────────────────────── */}
       <ConfirmModal
         isOpen={!!deleteId}
-        title="Hapus Event"
-        message="Apakah Anda yakin ingin menghapus event ini? Event yang sudah lewat pada tahun sebelumnya akan masuk ke riwayat secara otomatis, namun tindakan penghapusan ini bersifat permanen."
-        onCancel={() => setDeleteId(null)}
+        title="Hapus Agenda?"
+        message="Agenda ini akan dihapus dari kalender kerja Anda."
         onConfirm={executeDelete}
+        onCancel={() => setDeleteId(null)}
       />
     </div>
   );
