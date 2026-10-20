@@ -6,18 +6,34 @@ import { Toaster } from "react-hot-toast";
 import type { Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "CodebyMiguel — Dashboard",
-  description: "Dashboard admin modern untuk kelola bisnis Anda dengan mudah.",
+  title: "CodebyMiguel",
+  description: "Dashboard workspace modern — kelola notes, agenda, absensi, dan AI tracker.",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "CodebyMiguel",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f0f4ff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0f1e" },
+    { media: "(prefers-color-scheme: light)", color: "#111827" },
+    { media: "(prefers-color-scheme: dark)", color: "#111827" },
   ],
 };
 
@@ -25,13 +41,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" className="antialiased" suppressHydrationWarning>
       <head>
+        {/* iOS PWA */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="CodebyMiguel" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        {/* Splash screens iOS (optional fallback) */}
+        <meta name="mobile-web-app-capable" content="yes" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

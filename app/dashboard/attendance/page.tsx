@@ -507,47 +507,6 @@ export default function AttendancePage() {
     fetchData();
   };
 
-  // Batalkan / Reset Check-out Hari Ini jika tidak sengaja tertekan
-  const handleCancelCheckOut = async () => {
-    if (!today?.id) return;
-    if (!confirm('Apakah Anda ingin membatalkan status check-out hari ini karena salah tekan? Status akan dikembalikan aktif bekerja.')) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    const loadingToast = toast.loading('Membatalkan check-out...');
-
-    // 1. Update local storage
-    try {
-      const existing = JSON.parse(localStorage.getItem('codebymiguel_attendance_local') || '[]');
-      const updated = existing.map((r: AttendanceRecord) => {
-        if (r.id === today.id || r.date === today.date) {
-          return { ...r, check_out: null, check_out_image: null };
-        }
-        return r;
-      });
-      localStorage.setItem('codebymiguel_attendance_local', JSON.stringify(updated));
-    } catch {}
-
-    // 2. Update Supabase
-    try {
-      await supabase
-        .from('attendance')
-        .update({
-          check_out: null,
-          check_out_image: null,
-        })
-        .eq('id', today.id);
-    } catch (e) {
-      console.warn('Supabase cancel checkout note:', e);
-    }
-
-    setIsSubmitting(false);
-    toast.dismiss(loadingToast);
-    toast.success('Check-out berhasil dibatalkan! Status Anda kembali aktif bekerja.');
-    fetchData();
-  };
-
   // Scanner callback
   const handleFaceDetected = (descriptor: Float32Array, imageBase64: string) => {
     if (scannerMode === 'in') {
@@ -918,20 +877,6 @@ export default function AttendancePage() {
                   <span>Check-out Terkunci</span>
                 </button>
               )
-            )}
-
-            {checkedIn && checkedOut && (
-              <button
-                onClick={handleCancelCheckOut}
-                disabled={isSubmitting}
-                className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-[11px] font-semibold text-rose-500 hover:text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                title="Batalkan check-out jika tidak sengaja tertekan tadi pagi"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-                <span>Batalkan Check-out (Salah Tekan)</span>
-              </button>
             )}
           </div>
         </div>

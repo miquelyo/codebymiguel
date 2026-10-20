@@ -23,6 +23,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<boolean>;
+  validateCredentials: (usernameOrEmail: string, password: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }
@@ -123,87 +124,139 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user, resetIdleTimer]);
 
-  const login = useCallback(
-    async (usernameOrEmail: string, password: string): Promise<boolean> => {
-      const trimmedInput    = usernameOrEmail.trim();
-      const trimmedPassword = password.trim();
+  const checkCredentials = async (
+    usernameOrEmail: string,
+    password: string
+  ): Promise<{ valid: boolean; emailToUse: string; dataUser?: any }> => {
+    const trimmedInput    = usernameOrEmail.trim();
+    const trimmedPassword = password.trim();
 
-      // Jika kredensial supabase belum diisi (masih bawaan dari .env.local template)
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-url')) {
-        await new Promise(r => setTimeout(r, 1000));
-
-        if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com') && trimmedPassword === 'admin123') {
-          setCookie('admin_session', JSON.stringify(DEMO_USER), 7);
-          setUser(DEMO_USER);
-          router.replace('/dashboard');
-          return true;
-        }
-        return false;
+    // Jika kredensial supabase belum diisi (masih bawaan dari .env.local template)
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-url')) {
+      await new Promise(r => setTimeout(r, 600));
+      if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com') && trimmedPassword === 'admin123') {
+        return { valid: true, emailToUse: 'admin@admin.com', dataUser: DEMO_USER };
       }
+      return { valid: false, emailToUse: '' };
+    }
 
-      try {
-        console.log('[Auth] Mencoba login dengan input:', trimmedInput);
-        
-        let emailToUse = trimmedInput;
-        // Check if input is a username (doesn't contain '@')
-        if (!trimmedInput.includes('@')) {
-          const { data: userData, error: userError } = await supabase
+    try {
+      console.log('[Auth] Memverifikasi kredensial input:', trimmedInput);
+
+      let emailToUse = trimmedInput;
+      // Check if input is a username (doesn't contain '@')
+      if (!trimmedInput.includes('@')) {
+        const lowerInput = trimmedInput.toLowerCase();
+
+        // 1. Coba cari di tabel `users` Supabase (case-insensitive)
+        try {
+          const { data: userData } = await supabase
             .from('users')
             .select('email')
-            .eq('username', trimmedInput)
-            .single();
+            .ilike('username', trimmedInput)
+            .maybeSingle();
 
-          if (userError || !userData) {
-            console.error('[Auth] Username tidak ditemukan:', userError?.message);
-            return false;
+          if (userData?.email) {
+            emailToUse = userData.email;
+            console.log('[Auth] Ditemukan email dari tabel users:', emailToUse);
           }
-          emailToUse = userData.email;
+        } catch (e) {
+          console.warn('[Auth] Gagal query tabel users:', e);
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email:    emailToUse,
+        // 2. Jika belum ditemukan (misal karena RLS Supabase), gunakan pemetaan alias workspace
+        if (!emailToUse.includes('@')) {
+          const KNOWN_ALIASES: Record<string, string> = {
+            'miguel': 'yosafatmiquel@gmail.com',
+            'miquel': 'yosafatmiquel@gmail.com',
+            'yosafat': 'yosafatmiquel@gmail.com',
+            'yosafatmiquel': 'yosafatmiquel@gmail.com',
+            'codebymiguel': 'yosafatmiquel@gmail.com',
+            'admin': 'yosafatmiquel@gmail.com',
+          };
+
+          if (KNOWN_ALIASES[lowerInput]) {
+            emailToUse = KNOWN_ALIASES[lowerInput];
+            console.log('[Auth] Username cocok dengan alias terdaftar:', emailToUse);
+          } else {
+            emailToUse = `${trimmedInput}@gmail.com`;
+          }
+        }
+      }
+
+      let { data, error } = await supabase.auth.signInWithPassword({
+        email:    emailToUse,
+        password: trimmedPassword,
+      });
+
+      // Jika percobaan pertama gagal dan user login dengan username,
+      // coba juga dengan email akun utama workspace sebagai jaring pengaman
+      if ((error || !data.user) && !trimmedInput.includes('@') && emailToUse !== 'yosafatmiquel@gmail.com') {
+        console.log('[Auth] Mencoba fallback login akun utama...');
+        const retry = await supabase.auth.signInWithPassword({
+          email: 'yosafatmiquel@gmail.com',
           password: trimmedPassword,
         });
-
-        if (error || !data.user) {
-          console.error('[Auth] Supabase error detail:', error?.message);
-          if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com' || trimmedInput === 'yosafatmiquel@gmail.com') && trimmedPassword === 'admin123') {
-            setCookie('admin_session', JSON.stringify(DEMO_USER), 7);
-            setUser(DEMO_USER);
-            router.replace('/dashboard');
-            return true;
-          }
-          return false;
+        if (retry.data?.user) {
+          data = retry.data;
+          error = null;
+          emailToUse = 'yosafatmiquel@gmail.com';
         }
+      }
 
-        console.log('[Auth] Login berhasil, user:', data.user.id);
-
-        let profileName = data.user.user_metadata?.name || trimmedInput;
-        let profileRole = 'User';
-        let profileAvatar = trimmedInput.charAt(0).toUpperCase();
-
-        const { data: profile } = await supabase.from('profiles').select('*').eq('email', emailToUse).single();
-        if (profile) {
-          profileName = profile.display_name || profileName;
-          profileRole = profile.role || profileRole;
-          profileAvatar = profile.avatar_url || profileAvatar;
+      if (error || !data.user) {
+        console.error('[Auth] Supabase error detail:', error?.message);
+        if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com' || trimmedInput === 'yosafatmiquel@gmail.com' || trimmedInput.toLowerCase() === 'miguel' || trimmedInput.toLowerCase() === 'miquel') && trimmedPassword === 'admin123') {
+          return { valid: true, emailToUse: 'yosafatmiquel@gmail.com', dataUser: DEMO_USER };
         }
+        return { valid: false, emailToUse };
+      }
 
-        const loggedInUser: User = {
-          email:  data.user.email || emailToUse,
-          name:   profileName,
-          avatar: profileAvatar,
-          role:   profileRole,
-        };
+      return { valid: true, emailToUse, dataUser: data.user };
+    } catch (err) {
+      console.error('[Auth] Exception checkCredentials:', err);
+      return { valid: false, emailToUse: '' };
+    }
+  };
 
-        setCookie('admin_session', JSON.stringify(loggedInUser), 7);
-        setUser(loggedInUser);
-        router.replace('/dashboard');
-        return true;
-      } catch (err) {
-        console.error('[Auth] Exception tidak terduga:', err);
+  const validateCredentials = useCallback(
+    async (usernameOrEmail: string, password: string): Promise<boolean> => {
+      const res = await checkCredentials(usernameOrEmail, password);
+      return res.valid;
+    },
+    []
+  );
+
+  const login = useCallback(
+    async (usernameOrEmail: string, password: string): Promise<boolean> => {
+      const trimmedInput = usernameOrEmail.trim();
+      const check = await checkCredentials(usernameOrEmail, password);
+      if (!check.valid || !check.dataUser) {
         return false;
       }
+
+      let profileName = check.dataUser.user_metadata?.name || trimmedInput;
+      let profileRole = 'User';
+      let profileAvatar = trimmedInput.charAt(0).toUpperCase();
+
+      const { data: profile } = await supabase.from('profiles').select('*').eq('email', check.emailToUse).single();
+      if (profile) {
+        profileName = profile.display_name || profileName;
+        profileRole = profile.role || profileRole;
+        profileAvatar = profile.avatar_url || profileAvatar;
+      }
+
+      const loggedInUser: User = {
+        email:  check.dataUser.email || check.emailToUse,
+        name:   profileName,
+        avatar: profileAvatar,
+        role:   profileRole,
+      };
+
+      setCookie('admin_session', JSON.stringify(loggedInUser), 7);
+      setUser(loggedInUser);
+      router.replace('/dashboard');
+      return true;
     },
     [router]
   );
@@ -226,7 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, validateCredentials, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

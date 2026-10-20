@@ -20,6 +20,88 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // WhatsApp 2FA configuration states
+  const [is2FAEnabled, setIs2FAEnabled] = useState(true);
+  const [userPhone, setUserPhone] = useState('081214412001');
+  const [isToggling2FA, setIsToggling2FA] = useState(false);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [tempPhone, setTempPhone] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    const fetch2FA = async () => {
+      try {
+        const res = await fetch(`/api/auth/2fa-settings?user=${encodeURIComponent(user.email)}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (json.success) {
+          setIs2FAEnabled(json.enabled);
+          setUserPhone(json.phone || '081214412001');
+          setTempPhone(json.phone || '081214412001');
+        }
+      } catch (e) {}
+    };
+    fetch2FA();
+  }, [user]);
+
+  const handleToggle2FA = async () => {
+    if (!user) return;
+    setIsToggling2FA(true);
+    const nextState = !is2FAEnabled;
+    try {
+      const res = await fetch('/api/auth/2fa-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: user.email,
+          enabled: nextState,
+          phone: userPhone,
+        }),
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        setIs2FAEnabled(nextState);
+        toast.success(
+          nextState
+            ? 'Verifikasi WhatsApp (2FA) diaktifkan! Setiap login akan meminta kode OTP.'
+            : 'Verifikasi WhatsApp (2FA) dinonaktifkan! Anda bisa login langsung tanpa kode OTP.'
+        );
+      } else {
+        toast.error(resData.message || 'Gagal mengubah pengaturan 2FA.');
+      }
+    } catch {
+      toast.error('Gagal menghubungi server.');
+    } finally {
+      setIsToggling2FA(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    if (!user || !tempPhone.trim()) {
+      toast.error('Nomor WhatsApp tidak boleh kosong');
+      return;
+    }
+    try {
+      const res = await fetch('/api/auth/2fa-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: user.email,
+          phone: tempPhone.trim(),
+        }),
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        setUserPhone(tempPhone.trim());
+        setIsEditingPhone(false);
+        toast.success('Nomor WhatsApp berhasil disimpan!');
+      } else {
+        toast.error(resData.message || 'Gagal menyimpan nomor.');
+      }
+    } catch {
+      toast.error('Gagal menghubungi server.');
+    }
+  };
+
   useEffect(() => {
     if (user) {
       setForm({
@@ -254,6 +336,91 @@ export default function ProfilePage() {
             </span>
             <span className="font-bold text-foreground">SameSite=Lax Cookie</span>
             <p className="text-[10px] text-muted mt-1">Aman dari manipulasi pihak ketiga.</p>
+          </div>
+        </div>
+
+        {/* WhatsApp 2FA User Toggle Card */}
+        <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-surface/80 border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${is2FAEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+              <h4 className="text-sm font-bold text-foreground">
+                Verifikasi Login WhatsApp (2FA OTP)
+              </h4>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                is2FAEnabled ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-surface-hover text-muted border border-border'
+              }`}>
+                {is2FAEnabled ? 'Aktif' : 'Nonaktif'}
+              </span>
+            </div>
+            <p className="text-xs text-muted">
+              {is2FAEnabled
+                ? 'Kode OTP 6-digit wajib dimasukkan saat login ke akun Anda.'
+                : 'Login langsung masuk ke dashboard tanpa verifikasi kode OTP.'}
+            </p>
+            <div className="pt-1.5 flex items-center gap-2 text-xs">
+              <span className="text-muted">Nomor WhatsApp Anda:</span>
+              {isEditingPhone ? (
+                <div className="inline-flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={tempPhone}
+                    onChange={(e) => setTempPhone(e.target.value)}
+                    className="h-7 px-2.5 rounded-lg border border-primary bg-surface text-foreground font-mono text-xs outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSavePhone}
+                    className="px-2.5 py-0.5 bg-primary text-white rounded-md text-xs font-bold cursor-pointer"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempPhone(userPhone);
+                      setIsEditingPhone(false);
+                    }}
+                    className="px-1.5 py-0.5 text-muted hover:text-foreground text-xs cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2">
+                  <strong className="font-mono text-foreground font-bold">{userPhone}</strong>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingPhone(true)}
+                    className="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
+                  >
+                    Ubah
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-xs font-semibold text-muted">
+              {is2FAEnabled ? 'Matikan' : 'Hidupkan'}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={is2FAEnabled}
+              disabled={isToggling2FA}
+              onClick={handleToggle2FA}
+              className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                is2FAEnabled ? 'bg-emerald-500' : 'bg-border'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  is2FAEnabled ? 'translate-x-7' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
         </div>
       </div>

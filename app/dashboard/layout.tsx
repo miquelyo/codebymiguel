@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/components/AuthProvider';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
-/* ─────────────────────── Icons ─────────────────────────────── */
+/* ──────────────────────────── Icons ──────────────────────── */
 function CodeIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -14,7 +14,6 @@ function CodeIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 function GridIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -22,16 +21,6 @@ function GridIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
-function AttendanceIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v3m0 0l-1.5-1.5m1.5 1.5l1.5-1.5" />
-    </svg>
-  );
-}
-
 function NoteIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -39,7 +28,6 @@ function NoteIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 function CalendarIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -47,7 +35,6 @@ function CalendarIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 function SparklesIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -55,7 +42,36 @@ function SparklesIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
+function AttendanceIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2 2 4-4" />
+    </svg>
+  );
+}
+function BriefcaseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  );
+}
+function CpuIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 16.5V21m3.75-18v1.5m0 16.5V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9a.75.75 0 01.75.75v9a.75.75 0 01-.75.75h-9a.75.75 0 01-.75-.75v-9a.75.75 0 01.75-.75z" />
+    </svg>
+  );
+}
+function SettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
 function BellIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -63,7 +79,6 @@ function BellIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 function SunIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -71,7 +86,6 @@ function SunIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 function MoonIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -79,7 +93,6 @@ function MoonIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 function LogoutIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -87,91 +100,298 @@ function LogoutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
-function UserIcon({ className }: { className?: string }) {
+function ChevronDownIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+    </svg>
+  );
+}
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   );
 }
 
-/* ─────────────────────── Nav config ────────────────────────── */
-const NAV = [
-  { label: 'Dashboard', shortLabel: 'Home', href: '/dashboard', icon: GridIcon, badge: null },
-  { label: 'Notes & Tugas', shortLabel: 'Notes', href: '/dashboard/notes', icon: NoteIcon, badge: null },
-  { label: 'Absensi Wajah AI', shortLabel: 'Absen', href: '/dashboard/attendance', icon: AttendanceIcon, isHero: true, badge: 'Live' },
-  { label: 'Agenda & Events', shortLabel: 'Agenda', href: '/dashboard/agenda', icon: CalendarIcon, badge: null },
-  { label: 'AI Agent Tracker', shortLabel: 'AI Radar', href: '/dashboard/ai-tracker', icon: SparklesIcon, badge: 'Radar' },
-];
-
-function getPageInfo(pathname: string): { title: string; subtitle: string } {
-  const match = NAV.find((n) => n.href === pathname);
-  if (match) return { title: match.label, subtitle: 'Pusat Kendali Operasional' };
-  if (pathname.includes('/profile')) return { title: 'Profil Akun', subtitle: 'Informasi & Kredensial Keamanan' };
-  return { title: 'Dashboard', subtitle: 'Pusat Kendali Operasional' };
+/* ──────────────────────────── Nav Config ─────────────────── */
+export interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string | null;
+  isHero?: boolean;
+}
+export interface NavGroup {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
 }
 
-/* ─────────────────────── Layout ────────────────────────────── */
+const DASHBOARD_ITEM: NavItem = { label: 'Dashboard', href: '/dashboard', icon: GridIcon };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    icon: BriefcaseIcon,
+    items: [
+      { label: 'Notes & Tugas',    href: '/dashboard/notes',      icon: NoteIcon },
+      { label: 'Agenda & Events',  href: '/dashboard/agenda',     icon: CalendarIcon },
+    ],
+  },
+  {
+    id: 'ai_system',
+    label: 'AI & Sistem',
+    icon: CpuIcon,
+    items: [
+      { label: 'Absensi Wajah AI', href: '/dashboard/attendance', icon: AttendanceIcon, badge: 'Live' },
+      { label: 'AI Agent Tracker', href: '/dashboard/ai-tracker', icon: SparklesIcon, badge: 'Radar' },
+    ],
+  },
+];
+
+const SETTINGS_ITEM: NavItem = { label: 'Settings', href: '/dashboard/settings', icon: SettingsIcon };
+
+function getPageInfo(pathname: string): { title: string; subtitle: string; category: string } {
+  if (pathname === '/dashboard')             return { title: 'Dashboard',        subtitle: 'Ikhtisar aktivitas harian',         category: 'Overview'     };
+  if (pathname.includes('/notes'))           return { title: 'Notes & Tugas',    subtitle: 'Catatan & manajemen tugas',          category: 'Workspace'    };
+  if (pathname.includes('/agenda'))          return { title: 'Agenda & Events',  subtitle: 'Kalender & jadwal kegiatan',         category: 'Workspace'    };
+  if (pathname.includes('/attendance'))      return { title: 'Absensi Wajah AI', subtitle: 'Verifikasi biometrik presensi',      category: 'AI & Sistem'  };
+  if (pathname.includes('/ai-tracker'))      return { title: 'AI Agent Tracker', subtitle: 'Monitoring aktivitas & cooldown',    category: 'AI & Sistem'  };
+  if (pathname.includes('/settings'))        return { title: 'Settings',          subtitle: 'Pengaturan akun & preferensi',       category: 'Pengaturan'   };
+  if (pathname.includes('/whatsapp'))        return { title: 'WhatsApp Gateway', subtitle: 'Koneksi OTP 2FA mandiri',            category: 'Sistem'       };
+  return { title: 'Dashboard', subtitle: 'Ikhtisar aktivitas harian', category: 'Overview' };
+}
+
+/* ──────────────────────────── Sidebar Content ─────────────── */
+function SidebarContent({
+  pathname,
+  user,
+  openGroups,
+  toggleGroup,
+  logout,
+  onNavClick,
+}: {
+  pathname: string;
+  user: { name: string; email: string; role?: string; avatar?: string };
+  openGroups: Record<string, boolean>;
+  toggleGroup: (id: string) => void;
+  logout: () => void;
+  onNavClick?: () => void;
+}) {
+  const avatarContent =
+    user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:'))
+      ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+      : <span>{user.avatar || user.name?.charAt(0)?.toUpperCase() || 'U'}</span>;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-5 h-16 border-b border-border/50 shrink-0">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-foreground shadow-sm shrink-0">
+          <CodeIcon className="w-4 h-4 text-background" />
+        </div>
+        <div>
+          <span className="text-[13px] font-bold text-foreground tracking-tight block" style={{ fontFamily: 'var(--font-heading)' }}>
+            CodebyMiguel
+          </span>
+          <span className="text-[10px] text-muted flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-subtle inline-block" />
+            Workspace
+          </span>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+        {/* Dashboard */}
+        <Link
+          href={DASHBOARD_ITEM.href}
+          onClick={onNavClick}
+          className={`nav-item ${pathname === DASHBOARD_ITEM.href ? 'active' : ''}`}
+        >
+          <span className="nav-item-icon">
+            <DASHBOARD_ITEM.icon className="w-4 h-4" />
+          </span>
+          <span className="flex-1 truncate text-[13px]">{DASHBOARD_ITEM.label}</span>
+        </Link>
+
+        {/* Groups */}
+        {NAV_GROUPS.map((group) => {
+          const isOpen = openGroups[group.id] ?? false;
+          const hasActiveChild = group.items.some((item) => pathname === item.href);
+          return (
+            <div key={group.id} className="pt-3">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.id)}
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all cursor-pointer select-none ${
+                  hasActiveChild ? 'text-foreground' : 'text-muted-foreground hover:text-muted'
+                }`}
+              >
+                <span>{group.label}</span>
+                <ChevronDownIcon className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-0.5 pt-1 pb-1">
+                      {group.items.map(({ label, href, icon: Icon, badge }) => {
+                        const active = pathname === href;
+                        return (
+                          <Link
+                            key={href}
+                            href={href}
+                            onClick={onNavClick}
+                            className={`nav-item ${active ? 'active' : ''}`}
+                          >
+                            <span className="nav-item-icon">
+                              <Icon className="w-4 h-4" />
+                            </span>
+                            <span className="flex-1 truncate text-[13px]">{label}</span>
+                            {badge && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide ${
+                                active
+                                  ? 'bg-foreground/10 text-foreground'
+                                  : 'bg-muted/10 text-muted'
+                              }`}>
+                                {badge}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+
+        {/* Settings */}
+        <div className="pt-3">
+          <p className="section-label mb-1.5">Pengaturan</p>
+          <Link
+            href={SETTINGS_ITEM.href}
+            onClick={onNavClick}
+            className={`nav-item ${pathname.startsWith('/dashboard/settings') ? 'active' : ''}`}
+          >
+            <span className="nav-item-icon">
+              <SettingsIcon className="w-4 h-4" />
+            </span>
+            <span className="flex-1 truncate text-[13px]">{SETTINGS_ITEM.label}</span>
+          </Link>
+        </div>
+      </nav>
+
+      {/* User Footer */}
+      <div className="px-3 py-3 border-t border-border/50 shrink-0">
+        <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-surface-hover transition-colors group">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[11px] text-white bg-gradient-to-br from-slate-700 to-slate-900 shrink-0 overflow-hidden shadow-sm">
+            {avatarContent}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-semibold text-foreground truncate">{user.name}</p>
+            <p className="text-[10px] text-muted truncate">{user.role || 'Super Admin'}</p>
+          </div>
+          <button
+            onClick={logout}
+            title="Logout"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 transition-all cursor-pointer"
+          >
+            <LogoutIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────── Layout ─────────────────────── */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isLoading } = useAuth();
   const pathname = usePathname();
 
-  const [dark, setDark] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [dark, setDark]           = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [time, setTime] = useState<string>('');
+  const [time, setTime]           = useState<string>('');
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    workspace: true,
+    ai_system: false,
+  });
 
-  const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
-
   const pageInfo = getPageInfo(pathname);
+
+  // Close mobile drawer on route change
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  // Lock body scroll when drawer open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
+  // Auto-expand active group
+  useEffect(() => {
+    if (pathname.startsWith('/dashboard/notes') || pathname.startsWith('/dashboard/agenda')) {
+      setOpenGroups((p) => ({ ...p, workspace: true }));
+    } else if (pathname.startsWith('/dashboard/attendance') || pathname.startsWith('/dashboard/ai-tracker')) {
+      setOpenGroups((p) => ({ ...p, ai_system: true }));
+    }
+  }, [pathname]);
+
+  const toggleGroup = useCallback((id: string) => {
+    setOpenGroups((p) => ({ ...p, [id]: !p[id] }));
+  }, []);
 
   // Sync theme
   useEffect(() => {
     const saved = localStorage.getItem('theme');
     const isDark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
     setDark(isDark);
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', isDark);
   }, []);
 
-  // Live time ticker
+  // Live clock
   useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTime(
-        now.toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        })
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
+    const update = () =>
+      setTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
   }, []);
 
   const handleToggleTheme = () => {
-    setDark((prev) => {
-      const next = !prev;
+    setDark((p) => {
+      const next = !p;
       localStorage.setItem('theme', next ? 'dark' : 'light');
       document.documentElement.classList.toggle('dark', next);
       return next;
     });
   };
 
-  // Close dropdowns on click outside
+  // Close notif on outside click
   useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    const handle = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
-    }
+    };
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, []);
@@ -180,388 +400,226 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 shadow-xl shadow-indigo-500/25 animate-pulse">
-            <CodeIcon className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-foreground shadow-lg animate-breathe">
+            <CodeIcon className="w-5 h-5 text-background" />
           </div>
-          <span className="text-xs font-semibold text-muted tracking-widest uppercase">
-            Memuat Workspace...
+          <span className="text-xs font-semibold text-muted tracking-widest uppercase animate-pulse">
+            Memuat...
           </span>
         </div>
       </div>
     );
   }
 
-  const firstName = user.name?.split(' ')[0] || 'User';
+  const avatarContent =
+    user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:'))
+      ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+      : <span>{user.avatar || user.name?.charAt(0)?.toUpperCase() || 'U'}</span>;
 
   return (
-    <div className="flex min-h-screen bg-background relative selection:bg-primary/20 selection:text-primary">
-      {/* ── Desktop Sidebar ──────────────────────────────────────── */}
-      <aside className="hidden lg:flex fixed top-4 left-4 bottom-4 z-40 w-[265px] flex-col rounded-3xl glass-panel p-4 overflow-hidden border border-border/70 shadow-2xl">
-        {/* Brand Header */}
-        <div className="flex items-center gap-3 px-2 py-2 mb-4 shrink-0">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 shadow-md shadow-indigo-500/30">
-            <CodeIcon className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-base font-bold text-foreground tracking-tight truncate" style={{ fontFamily: 'var(--font-heading)' }}>
-              CodebyMiguel
-            </span>
-            <span className="text-[11px] text-muted font-medium flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Cloud Workspace
-            </span>
-          </div>
-        </div>
+    <div className="flex min-h-screen bg-background relative selection:bg-foreground/10">
 
-        {/* Navigation list */}
-        <nav className="flex-1 overflow-y-auto space-y-1.5 pr-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted/60 px-3 mb-2">
-            Menu Utama
-          </p>
-          <ul className="space-y-1.5">
-            {NAV.map(({ label, href, icon: Icon, badge, isHero }) => {
-              const active = pathname === href;
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    className={`
-                      flex items-center gap-3 px-3.5 py-3 rounded-2xl text-[13px] font-medium
-                      transition-all duration-200 group relative
-                      ${
-                        active
-                          ? 'text-white shadow-lg shadow-indigo-500/25 font-semibold bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500'
-                          : 'text-muted hover:text-foreground hover:bg-surface-hover/80'
-                      }
-                    `}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
-                        active ? 'text-white' : 'text-muted group-hover:text-foreground'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <span className="flex-1 truncate">{label}</span>
-
-                    {badge && (
-                      <span
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          active
-                            ? 'bg-white/20 text-white border border-white/30'
-                            : isHero
-                            ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
-                            : 'bg-primary/10 text-primary border border-primary/20'
-                        }`}
-                      >
-                        {badge}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        {/* System Telemetry Capsule */}
-        <div className="my-3 p-3.5 rounded-2xl bg-surface/50 border border-border/60 text-xs space-y-2">
-          <div className="flex items-center justify-between text-muted">
-            <span className="text-[11px] font-semibold">Security Shield</span>
-            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">Active</span>
-          </div>
-          <div className="w-full bg-border/40 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-gradient-to-r from-emerald-500 to-cyan-500 h-full w-[94%]" />
-          </div>
-          <div className="flex items-center justify-between text-[10px] text-muted">
-            <span>Face AI Descriptors</span>
-            <span className="font-mono font-medium text-foreground">v0.22</span>
-          </div>
-        </div>
-
-        {/* User Profile Mini Bar */}
-        <div className="pt-2 border-t border-border/60">
-          <Link
-            href="/dashboard/profile"
-            className="flex items-center gap-3 p-2 rounded-2xl hover:bg-surface-hover transition-colors group"
-          >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-md shrink-0 overflow-hidden">
-              {user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:')) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-              ) : (
-                user.avatar || 'MA'
-              )}
-            </div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-bold text-foreground truncate group-hover:text-primary transition-colors">
-                {user.name}
-              </span>
-              <span className="text-[10px] text-muted truncate">{user.role || 'Super Admin'}</span>
-            </div>
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-muted group-hover:text-foreground">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </div>
-          </Link>
-        </div>
+      {/* ════════════════════════════════════════════════════
+          DESKTOP SIDEBAR (lg+)
+      ════════════════════════════════════════════════════ */}
+      <aside className="hidden lg:flex fixed top-0 left-0 bottom-0 z-40 w-[248px] flex-col bg-surface border-r border-border/60 overflow-hidden">
+        <SidebarContent
+          pathname={pathname}
+          user={user}
+          openGroups={openGroups}
+          toggleGroup={toggleGroup}
+          logout={logout}
+        />
       </aside>
 
-      {/* ── Main Content Shell ────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-[295px] pb-32 lg:pb-8">
+      {/* ════════════════════════════════════════════════════
+          MOBILE DRAWER (< lg)
+      ════════════════════════════════════════════════════ */}
+      {/* Overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            key="overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Drawer panel */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.aside
+            key="drawer"
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', stiffness: 340, damping: 32, mass: 0.8 }}
+            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] bg-surface border-r border-border/60 overflow-hidden flex flex-col shadow-2xl"
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-hover transition-all cursor-pointer"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+
+            <SidebarContent
+              pathname={pathname}
+              user={user}
+              openGroups={openGroups}
+              toggleGroup={toggleGroup}
+              logout={logout}
+              onNavClick={() => setMobileOpen(false)}
+            />
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* ════════════════════════════════════════════════════
+          MAIN CONTENT AREA
+      ════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-[248px]">
+
         {/* Top Navbar */}
-        <header className="sticky top-0 z-30 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center justify-between glass-panel border-b border-border/60 backdrop-blur-xl">
-          {/* Left: Mobile Brand & Page Title */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="lg:hidden w-8.5 h-8.5 rounded-xl flex items-center justify-center bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 text-white shadow-md shadow-indigo-500/20 shrink-0">
-              <CodeIcon className="w-4.5 h-4.5" />
+        <header className="sticky top-0 z-30 h-14 sm:h-16 px-3 sm:px-5 lg:px-8 flex items-center justify-between glass-panel border-b border-border/50">
+
+          {/* Left: Hamburger (mobile) + Page title */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+
+            {/* Hamburger — mobile only */}
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="lg:hidden w-9 h-9 flex flex-col items-center justify-center gap-[5px] rounded-xl hover:bg-surface-hover transition-all cursor-pointer shrink-0 group"
+              aria-label="Open menu"
+            >
+              <span className="w-5 h-[1.5px] bg-foreground rounded-full transition-all group-hover:w-4" />
+              <span className="w-4 h-[1.5px] bg-foreground rounded-full" />
+              <span className="w-5 h-[1.5px] bg-foreground rounded-full transition-all group-hover:w-4" />
+            </button>
+
+            {/* Mobile brand wordmark (shows when drawer closed) */}
+            <div className="lg:hidden shrink-0">
+              <span className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
+                CodebyMiguel
+              </span>
             </div>
 
-            <div>
-              <div className="hidden sm:flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                <span>Workspace</span>
-                <span>/</span>
-                <span className="text-primary">{pageInfo.title}</span>
+            {/* Desktop breadcrumb */}
+            <div className="hidden lg:block">
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted mb-0.5">
+                <span>{pageInfo.category}</span>
+                <span className="opacity-40">/</span>
+                <span className="text-foreground/70">{pageInfo.title}</span>
               </div>
-              <h1 className="text-sm sm:text-xl font-extrabold tracking-tight text-foreground truncate max-w-[130px] sm:max-w-none" style={{ fontFamily: 'var(--font-heading)' }}>
+              <h1
+                className="text-base font-bold tracking-tight text-foreground truncate"
+                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.03em' }}
+              >
                 {pageInfo.title}
               </h1>
             </div>
           </div>
 
-          {/* Right: Clock, Theme Switch, Notification, Profile */}
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            {/* Live Clock Pill */}
+          {/* Right: Clock, Theme, Notif, Avatar */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+
+            {/* Clock Pill — md+ */}
             {time && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/70 border border-border/70 text-xs font-mono font-medium text-foreground">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-surface border border-border text-[11px] font-mono font-medium text-foreground shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-subtle" />
                 <span>{time}</span>
-                <span className="text-[10px] text-muted font-sans font-semibold">WIB</span>
               </div>
             )}
 
-            {/* Theme Toggle Button */}
+            {/* Theme Toggle */}
             <button
               onClick={handleToggleTheme}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center text-muted hover:text-foreground bg-surface/80 hover:bg-surface-hover border border-border/70 transition-all cursor-pointer shadow-sm"
-              title={dark ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-muted hover:text-foreground bg-surface hover:bg-surface-hover border border-border transition-all cursor-pointer shadow-sm"
+              title={dark ? 'Mode Terang' : 'Mode Gelap'}
             >
               <AnimatePresence mode="wait" initial={false}>
                 {dark ? (
-                  <motion.div
-                    key="sun"
-                    initial={{ rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <SunIcon className="w-4.5 h-4.5 text-amber-400" />
+                  <motion.div key="sun" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.18 }}>
+                    <SunIcon className="w-4 h-4 text-amber-500" />
                   </motion.div>
                 ) : (
-                  <motion.div
-                    key="moon"
-                    initial={{ rotate: 90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <MoonIcon className="w-4.5 h-4.5 text-indigo-500" />
+                  <motion.div key="moon" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.18 }}>
+                    <MoonIcon className="w-4 h-4" />
                   </motion.div>
                 )}
               </AnimatePresence>
             </button>
 
-            {/* Notification Bell Dropdown */}
+            {/* Notification Bell */}
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center text-muted hover:text-foreground bg-surface/80 hover:bg-surface-hover border border-border/70 transition-all cursor-pointer relative shadow-sm"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-muted hover:text-foreground bg-surface hover:bg-surface-hover border border-border transition-all cursor-pointer relative shadow-sm"
               >
-                <BellIcon className="w-4.5 h-4.5" />
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-background" />
+                <BellIcon className="w-4 h-4" />
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 ring-2 ring-surface" />
               </button>
 
               <AnimatePresence>
                 {notifOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-[-10px] sm:right-0 mt-3 w-[min(340px,calc(100vw-2rem))] sm:w-96 rounded-3xl glass-panel p-4 shadow-2xl border border-border/80 z-50"
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    transition={{ duration: 0.14 }}
+                    className="absolute right-0 mt-2 w-[300px] sm:w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl glass-panel shadow-xl border border-border z-50 overflow-hidden"
                   >
-                    <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                      <span className="font-bold text-sm text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-                        Notifikasi & Update
-                      </span>
-                      <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                        3 Baru
-                      </span>
+                    <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+                      <span className="font-semibold text-sm text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>Notifikasi</span>
+                      <span className="badge badge-info">3 Baru</span>
                     </div>
-                    <div className="py-2 divide-y divide-border/40 max-h-72 overflow-y-auto">
-                      <div className="py-2.5 flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
-                          <AttendanceIcon className="w-4 h-4" />
+                    <div className="divide-y divide-border/40 max-h-60 overflow-y-auto">
+                      {[
+                        { icon: '✓', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10', title: 'Sistem Absensi Aktif',  desc: 'Verifikasi biometrik siap digunakan.',    time: 'Baru saja' },
+                        { icon: '✦', color: 'text-purple-600 bg-purple-50 dark:bg-purple-500/10',  title: 'AI Agent Status OK',    desc: 'Semua model AI terpantau normal.',        time: '15m lalu'  },
+                        { icon: '↑', color: 'text-blue-600 bg-blue-50 dark:bg-blue-500/10',        title: 'Sinkronisasi Cloud',    desc: 'Catatan tersimpan otomatis di Supabase.', time: '1j lalu'   },
+                      ].map((n, i) => (
+                        <div key={i} className="px-4 py-3 flex items-start gap-3 hover:bg-surface-hover transition-colors cursor-pointer">
+                          <div className={`w-7 h-7 rounded-lg ${n.color} flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold`}>{n.icon}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-foreground">{n.title}</p>
+                            <p className="text-[11px] text-muted mt-0.5">{n.desc}</p>
+                            <span className="text-[10px] text-muted/60 mt-1 block">{n.time}</span>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground">Sistem Absensi Aktif</p>
-                          <p className="text-[11px] text-muted">Verifikasi biometrik siap digunakan hari ini.</p>
-                          <span className="text-[10px] text-muted/60 mt-1 block">Baru saja</span>
-                        </div>
-                      </div>
-
-                      <div className="py-2.5 flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0 mt-0.5">
-                          <SparklesIcon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground">AI Agent Status OK</p>
-                          <p className="text-[11px] text-muted">Semua model AI terpantau normal tanpa kendala.</p>
-                          <span className="text-[10px] text-muted/60 mt-1 block">15m lalu</span>
-                        </div>
-                      </div>
-
-                      <div className="py-2.5 flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0 mt-0.5">
-                          <NoteIcon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-foreground">Sinkronisasi Cloud Aktif</p>
-                          <p className="text-[11px] text-muted">Catatan dan event tersimpan otomatis di Supabase.</p>
-                          <span className="text-[10px] text-muted/60 mt-1 block">1 jam lalu</span>
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            {/* Profile Menu Dropdown */}
-            <div className="relative" ref={profileRef}>
-              <button
-                onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-2 pl-1 pr-1.5 sm:pr-2 py-1 rounded-2xl bg-surface/80 hover:bg-surface-hover border border-border/70 transition-all cursor-pointer shadow-sm"
-              >
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs text-white bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-sm overflow-hidden shrink-0">
-                  {user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:')) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                  ) : (
-                    user.avatar || 'MA'
-                  )}
-                </div>
-                <span className="hidden sm:inline text-xs font-bold text-foreground max-w-[100px] truncate">
-                  {firstName}
-                </span>
-                <svg className="w-3.5 h-3.5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </button>
-
-              <AnimatePresence>
-                {profileOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-3 w-60 max-w-[calc(100vw-2rem)] rounded-3xl glass-panel p-2 shadow-2xl border border-border/80 z-50"
-                  >
-                    <div className="px-3 py-2.5 mb-1 border-b border-border/60">
-                      <p className="text-xs font-bold text-foreground truncate">{user.name}</p>
-                      <p className="text-[11px] text-muted truncate">{user.email}</p>
-                    </div>
-
-                    <Link
-                      href="/dashboard/profile"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-foreground hover:bg-surface-hover transition-colors"
-                    >
-                      <UserIcon className="w-4 h-4 text-muted" />
-                      <span>Pengaturan Profil</span>
-                    </Link>
-
-                    <button
-                      onClick={() => {
-                        setProfileOpen(false);
-                        logout();
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-danger hover:bg-danger/10 transition-colors mt-1 cursor-pointer"
-                    >
-                      <LogoutIcon className="w-4 h-4" />
-                      <span>Keluar (Logout)</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Avatar → Settings */}
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-2 py-1.5 rounded-xl bg-surface hover:bg-surface-hover border border-border transition-all shadow-sm cursor-pointer"
+            >
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[11px] text-white bg-gradient-to-br from-slate-700 to-slate-900 shrink-0 overflow-hidden">
+                {avatarContent}
+              </div>
+              <span className="hidden sm:inline text-xs font-semibold text-foreground max-w-[80px] truncate">
+                {user.name?.split(' ')[0]}
+              </span>
+            </Link>
           </div>
         </header>
 
-        {/* Content Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        {/* Page Content */}
+        <main className="flex-1 p-3 sm:p-5 lg:p-8 max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>
-
-      {/* ── Single Unified Mobile Floating Bottom Navigation ─────── */}
-      <nav
-        style={{ bottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
-        className="lg:hidden fixed left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] sm:w-[calc(100%-3rem)] max-w-md z-40 rounded-3xl floating-bottom-nav px-2 py-2 flex items-center justify-between shadow-2xl border border-border/80"
-      >
-        {NAV.map(({ shortLabel, href, icon: Icon, isHero }) => {
-          const active = pathname === href;
-
-          if (isHero) {
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="flex-1 flex flex-col items-center group relative -mt-6"
-              >
-                <div
-                  className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all shadow-xl ${
-                    active
-                      ? 'bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 text-white shadow-indigo-500/40 ring-4 ring-background scale-105'
-                      : 'bg-gradient-to-tr from-indigo-500 to-cyan-500 text-white shadow-indigo-500/30 ring-4 ring-background hover:scale-105'
-                  }`}
-                >
-                  <Icon className="w-6 h-6" />
-                </div>
-                <span className={`text-[10px] font-bold mt-1 tracking-tight ${active ? 'text-primary' : 'text-muted'}`}>
-                  {shortLabel}
-                </span>
-              </Link>
-            );
-          }
-
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex-1 flex flex-col items-center gap-1 py-1 rounded-2xl transition-all relative ${
-                active ? 'text-primary font-bold' : 'text-muted hover:text-foreground'
-              }`}
-            >
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                  active
-                    ? 'bg-primary/10 text-primary font-bold'
-                    : 'text-muted group-hover:text-foreground'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] tracking-tight">{shortLabel}</span>
-              {active && (
-                <span className="w-1 h-1 rounded-full bg-primary absolute bottom-0.5" />
-              )}
-            </Link>
-          );
-        })}
-      </nav>
     </div>
   );
 }
