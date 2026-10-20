@@ -26,6 +26,12 @@ export default function DashboardPage() {
   const [notesCount, setNotesCount] = useState<number>(0);
   const [eventsCount, setEventsCount] = useState<number>(0);
   const [aiAgentsCount, setAiAgentsCount] = useState<number>(0);
+  const [aiAgentsList, setAiAgentsList] = useState<Array<{
+    id: string;
+    email_account: string;
+    gemini_refresh_at: string | null;
+    claude_gpt_refresh_at: string | null;
+  }>>([]);
   const [quickNoteTitle, setQuickNoteTitle] = useState('');
   const [recentNotes, setRecentNotes] = useState<Array<{ id: string; title: string; date: string }>>([]);
   const [recentEvents, setRecentEvents] = useState<Array<{ id: string; title: string; event_date: string }>>([]);
@@ -79,11 +85,13 @@ export default function DashboardPage() {
         if (evCount !== null) setEventsCount(evCount);
         if (evList) setRecentEvents(evList);
 
-        // 3. AI Agents Count
-        const { count: aiCount } = await supabase
+        // 3. AI Agents
+        const { data: aiList, count: aiCount } = await supabase
           .from('ai_agents')
-          .select('*', { count: 'exact', head: true });
+          .select('*')
+          .order('created_at', { ascending: false });
         if (aiCount !== null) setAiAgentsCount(aiCount);
+        if (aiList) setAiAgentsList(aiList);
       } catch (err) {
         console.warn('Error fetching live stats:', err);
       }
@@ -268,7 +276,9 @@ export default function DashboardPage() {
             </div>
             <div>
               <span className="text-xl sm:text-3xl font-extrabold text-foreground font-mono">{aiAgentsCount}</span>
-              <p className="text-[10px] sm:text-[11px] text-muted mt-1 truncate">Akun AI dipantau cooldown</p>
+              <p className="text-[10px] sm:text-[11px] text-muted mt-1 truncate">
+                {aiAgentsList.filter(a => (!a.claude_gpt_refresh_at || new Date(a.claude_gpt_refresh_at).getTime() <= time.getTime()) || (!a.gemini_refresh_at || new Date(a.gemini_refresh_at).getTime() <= time.getTime())).length} Akun Siap Pakai
+              </p>
             </div>
           </motion.div>
         </Link>
@@ -394,73 +404,129 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-bold text-muted uppercase tracking-wider">Multi-Model AI Status</span>
               <Link href="/dashboard/ai-tracker" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-                <span>Kelola Akun</span>
+                <span>Kelola Akun ({aiAgentsCount})</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
-            <h3 className="text-xl font-bold tracking-tight text-foreground mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+            <h3 className="text-xl font-bold tracking-tight text-foreground mb-1.5" style={{ fontFamily: 'var(--font-heading)' }}>
               AI Cooldown Radar
             </h3>
-            <p className="text-muted text-xs leading-relaxed mb-6">
-              Pantau siklus refresh token dan batas rate-limit model AI agar produktivitas coding tidak terputus.
+            <p className="text-muted text-xs leading-relaxed mb-5">
+              Status ketersediaan rate-limit akun coding AI Anda secara real-time.
             </p>
 
-            {/* Model list */}
-            <div className="space-y-3.5">
-              <div className="p-3.5 rounded-2xl bg-surface/60 border border-border/70 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold text-xs">
-                    CL
+            {/* Model Summary Rows */}
+            <div className="space-y-3">
+              {/* Claude 3.5 & GPT */}
+              {(() => {
+                const nowMs = time.getTime();
+                const claudeReady = aiAgentsList.filter(
+                  a => !a.claude_gpt_refresh_at || new Date(a.claude_gpt_refresh_at).getTime() <= nowMs
+                ).length;
+                return (
+                  <div className="p-3 rounded-2xl bg-surface/60 border border-border/70 flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold text-xs shrink-0">
+                        CL
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">Claude 3.5 / ChatGPT</p>
+                        <p className="text-[10px] text-muted truncate">Anthropic & OpenAI Cooldown</p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 border ${
+                      claudeReady > 0
+                        ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/25'
+                        : 'bg-orange-500/15 text-orange-500 border-orange-500/25'
+                    }`}>
+                      {claudeReady} / {aiAgentsList.length || 0} Ready
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground">Claude 3.5 Sonnet</p>
-                    <p className="text-[10px] text-muted">Anthropic Session Limit</p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/20">
-                  Ready (No Wait)
-                </span>
-              </div>
+                );
+              })()}
 
-              <div className="p-3.5 rounded-2xl bg-surface/60 border border-border/70 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-xs">
-                    GPT
+              {/* Google Gemini Pro */}
+              {(() => {
+                const nowMs = time.getTime();
+                const geminiReady = aiAgentsList.filter(
+                  a => !a.gemini_refresh_at || new Date(a.gemini_refresh_at).getTime() <= nowMs
+                ).length;
+                return (
+                  <div className="p-3 rounded-2xl bg-surface/60 border border-border/70 flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs shrink-0">
+                        GEM
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">Google Gemini 1.5 Pro</p>
+                        <p className="text-[10px] text-muted truncate">Google AI Studio Quota</p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 border ${
+                      geminiReady > 0
+                        ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/25'
+                        : 'bg-blue-500/15 text-blue-500 border-blue-500/25'
+                    }`}>
+                      {geminiReady} / {aiAgentsList.length || 0} Ready
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground">OpenAI GPT-4o</p>
-                    <p className="text-[10px] text-muted">3-Hour Cooldown Cycle</p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/20">
-                  Ready
-                </span>
-              </div>
+                );
+              })()}
 
-              <div className="p-3.5 rounded-2xl bg-surface/60 border border-border/70 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs">
-                    GEM
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground">Gemini 1.5 Pro</p>
-                    <p className="text-[10px] text-muted">Google AI Studio</p>
+              {/* Quick Monitored Accounts Mini-list */}
+              {aiAgentsList.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-[10px] font-bold uppercase text-muted tracking-wider mb-2">
+                    Akun Teratas Dipantau:
+                  </p>
+                  <div className="space-y-1.5">
+                    {aiAgentsList.slice(0, 3).map((ag) => {
+                      const nowMs = time.getTime();
+                      const clReady = !ag.claude_gpt_refresh_at || new Date(ag.claude_gpt_refresh_at).getTime() <= nowMs;
+                      const gemReady = !ag.gemini_refresh_at || new Date(ag.gemini_refresh_at).getTime() <= nowMs;
+
+                      return (
+                        <div
+                          key={ag.id}
+                          className="px-3 py-2 rounded-xl bg-surface-hover/50 border border-border/40 flex items-center justify-between text-xs"
+                        >
+                          <span className="font-medium text-foreground truncate max-w-[180px] sm:max-w-[220px]">
+                            {ag.email_account}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                clReady ? 'bg-emerald-500/15 text-emerald-500' : 'bg-orange-500/15 text-orange-500'
+                              }`}
+                              title={clReady ? 'Claude: Ready' : 'Claude: Cooldown'}
+                            >
+                              CL {clReady ? '✓' : '⏳'}
+                            </span>
+                            <span
+                              className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                gemReady ? 'bg-emerald-500/15 text-emerald-500' : 'bg-blue-500/15 text-blue-500'
+                              }`}
+                              title={gemReady ? 'Gemini: Ready' : 'Gemini: Cooldown'}
+                            >
+                              GEM {gemReady ? '✓' : '⏳'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-500 border border-indigo-500/20">
-                  Standby
-                </span>
-              </div>
+              )}
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-border/60">
+          <div className="mt-5 pt-4 border-t border-border/60">
             <Link
               href="/dashboard/ai-tracker"
-              className="w-full h-10 rounded-xl bg-surface-hover hover:bg-border/60 text-xs font-bold text-foreground flex items-center justify-center gap-2 transition-all"
+              className="w-full h-10 rounded-xl bg-surface-hover hover:bg-border/60 text-xs font-bold text-foreground flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              <span>Buka AI Agent Tracker Lengkap</span>
+              <span>Buka AI Agent Tracker Lengkap ({aiAgentsCount})</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>

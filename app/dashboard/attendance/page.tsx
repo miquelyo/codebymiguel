@@ -461,6 +461,15 @@ export default function AttendancePage() {
       return;
     }
 
+    // Strict validation: Tutup / Tolak checkout jika belum waktunya
+    const checkoutTargetDate = today?.checkout_target ? new Date(today.checkout_target) : null;
+    const canCheckOutNow = !!checkoutTargetDate && now >= checkoutTargetDate;
+    if (!canCheckOutNow) {
+      toast.error('Belum saatnya check-out! Tombol check-out terkunci hingga jam kerja minimal 8 jam terpenuhi.');
+      setScannerMode(null);
+      return;
+    }
+
     setIsSubmitting(true);
     const loadingToast = toast.loading('Memproses checkout biometrik...');
     const updatedCheckout = now.toISOString();
@@ -495,6 +504,47 @@ export default function AttendancePage() {
 
     toast.success('Check-out berhasil! Terima kasih atas dedikasi Anda hari ini.');
     setScannerMode(null);
+    fetchData();
+  };
+
+  // Batalkan / Reset Check-out Hari Ini jika tidak sengaja tertekan
+  const handleCancelCheckOut = async () => {
+    if (!today?.id) return;
+    if (!confirm('Apakah Anda ingin membatalkan status check-out hari ini karena salah tekan? Status akan dikembalikan aktif bekerja.')) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    const loadingToast = toast.loading('Membatalkan check-out...');
+
+    // 1. Update local storage
+    try {
+      const existing = JSON.parse(localStorage.getItem('codebymiguel_attendance_local') || '[]');
+      const updated = existing.map((r: AttendanceRecord) => {
+        if (r.id === today.id || r.date === today.date) {
+          return { ...r, check_out: null, check_out_image: null };
+        }
+        return r;
+      });
+      localStorage.setItem('codebymiguel_attendance_local', JSON.stringify(updated));
+    } catch {}
+
+    // 2. Update Supabase
+    try {
+      await supabase
+        .from('attendance')
+        .update({
+          check_out: null,
+          check_out_image: null,
+        })
+        .eq('id', today.id);
+    } catch (e) {
+      console.warn('Supabase cancel checkout note:', e);
+    }
+
+    setIsSubmitting(false);
+    toast.dismiss(loadingToast);
+    toast.success('Check-out berhasil dibatalkan! Status Anda kembali aktif bekerja.');
     fetchData();
   };
 
@@ -843,17 +893,44 @@ export default function AttendancePage() {
               </p>
             </div>
 
+            {/* Action Buttons for Check-out */}
             {checkedIn && !checkedOut && (
+              canCheckOut ? (
+                <button
+                  onClick={() => setScannerMode('out')}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-md shadow-emerald-500/25 bg-gradient-to-r from-emerald-600 to-teal-500 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  <span>Presensi Pulang</span>
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-hover/80 border border-border text-muted cursor-not-allowed opacity-60 flex items-center justify-center gap-2 select-none"
+                  title={`Check-out terkunci sampai waktu target (${today?.checkout_target ? fmtTime(today.checkout_target, activeTimezone) : '15:00 WIB'})`}
+                >
+                  <svg className="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span>Check-out Terkunci</span>
+                </button>
+              )
+            )}
+
+            {checkedIn && checkedOut && (
               <button
-                onClick={() => setScannerMode('out')}
+                onClick={handleCancelCheckOut}
                 disabled={isSubmitting}
-                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  canCheckOut
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:scale-105 active:scale-95 shadow-emerald-500/25'
-                    : 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/20'
-                }`}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-[11px] font-semibold text-rose-500 hover:text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                title="Batalkan check-out jika tidak sengaja tertekan tadi pagi"
               >
-                <span>{canCheckOut ? 'Presensi Pulang' : 'Pulang Lebih Awal'}</span>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span>Batalkan Check-out (Salah Tekan)</span>
               </button>
             )}
           </div>
