@@ -372,3 +372,37 @@ html.dark .toggle-track.on .toggle-thumb { background: #111827; }
 
 /* ── Safe Area ───────────────────────────────────────────────── */
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+
+/* ── PWA Standalone Mode — fix header overlap with status bar ── */
+/*
+  Ketika dibuka sebagai PWA (Add to Home Screen),
+  header sticky harus diberi padding-top sebesar safe-area-inset-top
+  agar tidak tertutup status bar (khususnya iOS dengan viewportFit=cover).
+*/
+@supports (padding-top: env(safe-area-inset-top)) {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+  }
+}
+
+/* PWA header safe area: tambah padding-top di header utama saat standalone */
+@media all and (display-mode: standalone) {
+  .pwa-header {
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(3.5rem + env(safe-area-inset-top, 0px));
+  }
+  /* sm: 4rem header */
+  @media (min-width: 640px) {
+    .pwa-header {
+      height: calc(4rem + env(safe-area-inset-top, 0px));
+    }
+  }
+  /* Offset main content area saat standalone */
+  .pwa-content-offset {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}

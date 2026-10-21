@@ -1,10 +1,38 @@
-﻿'use client';
+'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/components/AuthProvider';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+
+/* ─── PWA Safe Area Hook ────────────────────────────────────── */
+function usePWASafeArea() {
+  const [safeTop, setSafeTop] = useState(0);
+  const [isPWA, setIsPWA]     = useState(false);
+
+  useEffect(() => {
+    // Detect standalone / fullscreen PWA mode
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setIsPWA(standalone);
+
+    if (standalone) {
+      // Read safe-area-inset-top via CSS env()
+      const el = document.createElement('div');
+      el.style.cssText =
+        'position:fixed;top:0;left:0;width:0;height:0;' +
+        'padding-top:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none;';
+      document.body.appendChild(el);
+      const top = parseInt(getComputedStyle(el).paddingTop || '0', 10);
+      setSafeTop(isNaN(top) ? 0 : top);
+      document.body.removeChild(el);
+    }
+  }, []);
+
+  return { safeTop, isPWA };
+}
 
 /* ──────────────────────────── Icons ──────────────────────── */
 function CodeIcon({ className }: { className?: string }) {
@@ -322,6 +350,7 @@ function SidebarContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isLoading } = useAuth();
   const pathname = usePathname();
+  const { safeTop, isPWA } = usePWASafeArea();
 
   const [dark, setDark]           = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -422,7 +451,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ════════════════════════════════════════════════════
           DESKTOP SIDEBAR (lg+)
       ════════════════════════════════════════════════════ */}
-      <aside className="hidden lg:flex fixed top-0 left-0 bottom-0 z-40 w-[248px] flex-col bg-surface border-r border-border/60 overflow-hidden">
+      <aside
+        className="hidden lg:flex fixed left-0 bottom-0 z-40 w-[248px] flex-col bg-surface border-r border-border/60 overflow-hidden"
+        style={{ top: isPWA ? safeTop : 0 }}
+      >
         <SidebarContent
           pathname={pathname}
           user={user}
@@ -459,12 +491,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 32, mass: 0.8 }}
-            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] bg-surface border-r border-border/60 overflow-hidden flex flex-col shadow-2xl"
+            className="lg:hidden fixed left-0 bottom-0 z-50 w-[280px] bg-surface border-r border-border/60 overflow-hidden flex flex-col shadow-2xl"
+            style={{ top: isPWA && safeTop > 0 ? safeTop : 0 }}
           >
             {/* Close button */}
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-hover transition-all cursor-pointer"
+              className="absolute right-4 z-10 w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-hover transition-all cursor-pointer"
+              style={{ top: isPWA && safeTop > 0 ? `calc(1rem + ${safeTop}px)` : '1rem' }}
             >
               <XIcon className="w-4 h-4" />
             </button>
@@ -487,7 +521,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-w-0 lg:pl-[248px]">
 
         {/* Top Navbar */}
-        <header className="sticky top-0 z-30 h-14 sm:h-16 px-3 sm:px-5 lg:px-8 flex items-center justify-between glass-panel border-b border-border/50">
+        <header
+          className="pwa-header sticky top-0 z-30 px-3 sm:px-5 lg:px-8 flex flex-col justify-end glass-panel border-b border-border/50"
+          style={isPWA && safeTop > 0 ? { paddingTop: safeTop } : undefined}
+        >
+          {/* inner row — sempre h-14 sm:h-16 */}
+          <div className="h-14 sm:h-16 flex items-center justify-between w-full">
 
           {/* Left: Hamburger (mobile) + Page title */}
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -613,6 +652,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </span>
             </Link>
           </div>
+
+          </div>{/* end inner row */}
         </header>
 
         {/* Page Content */}
