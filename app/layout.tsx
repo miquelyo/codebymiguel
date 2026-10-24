@@ -6,13 +6,33 @@ import { Toaster } from "react-hot-toast";
 import type { Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "CodebyMiguel",
-  description: "Dashboard workspace modern — kelola notes, agenda, absensi, dan AI tracker.",
+  metadataBase: new URL('https://codebymiguel.com'),
+  title: {
+    default: "CodebyMiguel — Modern Personal Workspace",
+    template: "%s | CodebyMiguel",
+  },
+  description: "Dashboard workspace modern — kelola notes, agenda, absensi AI, agen cerdas, dan gaya hidup sehat.",
+  applicationName: "CodebyMiguel",
+  authors: [{ name: "Miguel Yosafat" }],
+  keywords: ["CodebyMiguel", "Workspace", "Dashboard", "Notes", "Agenda", "Habit Tracker", "AI Tracker"],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     title: "CodebyMiguel",
     statusBarStyle: "black-translucent",
+  },
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: "https://codebymiguel.com",
+    title: "CodebyMiguel — Modern Personal Workspace",
+    description: "Dashboard workspace modern — kelola notes, agenda, absensi AI, agen cerdas, dan gaya hidup sehat.",
+    siteName: "CodebyMiguel",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CodebyMiguel — Modern Personal Workspace",
+    description: "Dashboard workspace modern terpadu.",
   },
   icons: {
     apple: [
@@ -29,8 +49,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#111827" },
@@ -42,7 +60,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" className="antialiased" suppressHydrationWarning>
       <head>
-        {/* iOS PWA — force new icon, cache bust v2 */}
+        {/* Google Fonts preconnect & non-blocking stylesheet for optimal mobile Lighthouse FCP */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        />
+
+        {/* iOS PWA meta */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
@@ -52,8 +78,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png?v=3" />
         <link rel="shortcut icon" href="/favicon.ico?v=3" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+
         <script
           dangerouslySetInnerHTML={{
             __html: `

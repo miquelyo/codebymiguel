@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/components/AuthProvider';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ─── PWA Safe Area Hook ────────────────────────────────────── */
@@ -359,6 +359,7 @@ function SidebarContent({
           <button
             onClick={logout}
             title="Logout"
+            aria-label="Keluar dari akun"
             className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 transition-all cursor-pointer"
           >
             <LogoutIcon className="w-3.5 h-3.5" />
@@ -373,6 +374,7 @@ function SidebarContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isLoading } = useAuth();
   const pathname = usePathname();
+  const router   = useRouter();
   const { safeTop, isPWA } = usePWASafeArea();
 
   const [dark, setDark]           = useState(false);
@@ -451,6 +453,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
+  // Redirect ke /login jika tidak sedang memuat dan sesi kosong (idle atau belum login)
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace('/login?reason=idle');
+    }
+  }, [isLoading, user, router]);
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -523,6 +532,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Close button */}
             <button
               onClick={() => setMobileOpen(false)}
+              aria-label="Tutup menu navigasi"
               className="absolute right-4 z-10 w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-hover transition-all cursor-pointer"
               style={{ top: isPWA && safeTop > 0 ? `calc(1rem + ${safeTop}px)` : '1rem' }}
             >
@@ -561,7 +571,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => setMobileOpen(true)}
               className="lg:hidden w-9 h-9 flex flex-col items-center justify-center gap-[5px] rounded-xl hover:bg-surface-hover transition-all cursor-pointer shrink-0 group"
-              aria-label="Open menu"
+              aria-label="Buka navigasi menu"
             >
               <span className="w-5 h-[1.5px] bg-foreground rounded-full transition-all group-hover:w-4" />
               <span className="w-4 h-[1.5px] bg-foreground rounded-full" />
@@ -607,6 +617,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={handleToggleTheme}
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-muted hover:text-foreground bg-surface hover:bg-surface-hover border border-border transition-all cursor-pointer shadow-sm"
               title={dark ? 'Mode Terang' : 'Mode Gelap'}
+              aria-label={dark ? 'Beralih ke mode terang' : 'Beralih ke mode gelap'}
             >
               <AnimatePresence mode="wait" initial={false}>
                 {dark ? (
@@ -626,6 +637,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-muted hover:text-foreground bg-surface hover:bg-surface-hover border border-border transition-all cursor-pointer relative shadow-sm"
+                aria-label="Buka daftar notifikasi"
+                title="Notifikasi"
               >
                 <BellIcon className="w-4 h-4" />
                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 ring-2 ring-surface" />
@@ -668,6 +681,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Avatar → Settings */}
             <Link
               href="/dashboard/settings"
+              aria-label="Pengaturan akun dan profil"
               className="flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-2 py-1.5 rounded-xl bg-surface hover:bg-surface-hover border border-border transition-all shadow-sm cursor-pointer"
             >
               <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[11px] text-white bg-gradient-to-br from-slate-700 to-slate-900 shrink-0 overflow-hidden">

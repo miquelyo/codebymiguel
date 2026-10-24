@@ -334,7 +334,7 @@ function LoginContent() {
 
                 <form onSubmit={handleCredentialsSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    <label htmlFor="login-username" className="block text-xs font-semibold text-zinc-700 mb-1.5">
                       Email atau Username
                     </label>
                     <div className="relative">
@@ -344,18 +344,22 @@ function LoginContent() {
                         </svg>
                       </div>
                       <input
+                        id="login-username"
+                        name="username"
                         type="text"
+                        autoComplete="username"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Username atau email"
+                        aria-label="Username atau email"
                         className="w-full h-12 pl-10 pr-4 rounded-xl bg-zinc-50 border border-zinc-200 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 transition-all outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    <label htmlFor="login-password" className="block text-xs font-semibold text-zinc-700 mb-1.5">
                       Password
                     </label>
                     <div className="relative">
@@ -365,17 +369,22 @@ function LoginContent() {
                         </svg>
                       </div>
                       <input
+                        id="login-password"
+                        name="password"
                         ref={passwordRef}
                         type={showPw ? 'text' : 'password'}
+                        autoComplete="current-password"
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
+                        aria-label="Password akun"
                         className="w-full h-12 pl-10 pr-11 rounded-xl bg-zinc-50 border border-zinc-200 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 transition-all outline-none"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPw(!showPw)}
+                        aria-label={showPw ? 'Sembunyikan password' : 'Lihat password'}
                         className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
                       >
                         {showPw ? (
@@ -460,10 +469,12 @@ function LoginContent() {
                 {/* Form OTP Input */}
                 <form onSubmit={handleVerifyOtp} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-2 text-center">
+                    <label htmlFor="otp-input" className="block text-xs font-semibold text-zinc-700 mb-2 text-center">
                       Masukkan 6-Digit Kode OTP
                     </label>
                     <input
+                      id="otp-input"
+                      name="otp"
                       ref={otpInputRef}
                       type="text"
                       inputMode="numeric"
@@ -477,6 +488,7 @@ function LoginContent() {
                         setOtpCode(val);
                       }}
                       placeholder="••••••"
+                      aria-label="6 digit kode OTP WhatsApp"
                       className="w-full h-14 text-center tracking-[0.45em] text-2xl font-mono font-bold rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-900 focus:bg-white focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 placeholder:text-zinc-400 transition-all outline-none"
                     />
                   </div>

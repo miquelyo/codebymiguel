@@ -50,50 +50,118 @@ function setCookie(name: string, value: string, days = 7) {
 }
 
 function deleteCookie(name: string) {
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
 }
 
 function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined') return null;
   const match = document.cookie.match(
     new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)')
   );
   return match ? decodeURIComponent(match[1]) : null;
 }
-// ────────────────────────────────────────────────────────────────
 
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+// ─── Dual Storage Helpers (Cookie + LocalStorage) ────────────────
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 menit
+
+function getLastActiveTime(): number | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const ls = localStorage.getItem('session_last_active');
+    if (ls) {
+      const parsed = parseInt(ls, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+  } catch { /* noop */ }
+
+  const ck = getCookieValue('session_last_active');
+  if (ck) {
+    const parsed = parseInt(ck, 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return null;
+}
+
+function recordActiveTime(ts: number = Date.now()) {
+  if (typeof document === 'undefined') return;
+  try {
+    localStorage.setItem('session_last_active', String(ts));
+  } catch { /* noop */ }
+  // Set cookie valid for 15 minutes (900 seconds)
+  document.cookie = `session_last_active=${ts}; path=/; max-age=900; SameSite=Lax`;
+}
+
+function clearAllSession() {
+  deleteCookie('admin_session');
+  deleteCookie('session_last_active');
+  try {
+    localStorage.removeItem('session_last_active');
+  } catch { /* noop */ }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]           = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router                    = useRouter();
   const idleTimerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRecordedRef           = useRef<number>(0);
 
-  const resetIdleTimer = useCallback(() => {
+  // Forced logout when idle timeout triggers
+  const logoutIdle = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    idleTimerRef.current = setTimeout(() => {
-      setUser(prev => {
-        if (prev) {
-          deleteCookie('admin_session');
-          deleteCookie('session_last_active');
-          window.location.href = '/login?reason=idle';
-        }
-        return null;
-      });
-    }, IDLE_TIMEOUT_MS);
-    document.cookie = `session_last_active=${Date.now()}; path=/; SameSite=Lax`;
+    clearAllSession();
+    setUser(null);
+    if (typeof window !== 'undefined') {
+      window.location.replace('/login?reason=idle');
+    }
   }, []);
 
-  // Cek cookie saat pertama load, periksa apakah sesi idle terlalu lama
+  // Standard user-initiated logout
+  const logout = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    clearAllSession();
+    setUser(null);
+    router.replace('/login');
+  }, [router]);
+
+  // Resets in-memory timeout and records activity
+  const resetIdleTimer = useCallback(() => {
+    const now = Date.now();
+    const lastActive = getLastActiveTime();
+
+    // Check if session has already expired before touching or refreshing
+    if (lastActive && now - lastActive > IDLE_TIMEOUT_MS) {
+      logoutIdle();
+      return;
+    }
+
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      logoutIdle();
+    }, IDLE_TIMEOUT_MS);
+
+    // Throttle writing to cookie and localStorage to at most once every 10 seconds
+    if (now - lastRecordedRef.current > 10000) {
+      lastRecordedRef.current = now;
+      recordActiveTime(now);
+    }
+  }, [logoutIdle]);
+
+  // Initial check on mount
   useEffect(() => {
     const raw = getCookieValue('admin_session');
     if (raw) {
       try {
-        const lastActive = getCookieValue('session_last_active');
-        const isIdle = lastActive && Date.now() - parseInt(lastActive) > IDLE_TIMEOUT_MS;
+        const lastActive = getLastActiveTime();
+        const isIdle = lastActive ? Date.now() - lastActive > IDLE_TIMEOUT_MS : false;
+
         if (isIdle) {
-          deleteCookie('admin_session');
-          deleteCookie('session_last_active');
+          clearAllSession();
+          setUser(null);
+          if (window.location.pathname.startsWith('/dashboard')) {
+            window.location.replace('/login?reason=idle');
+            return;
+          }
         } else {
           const parsed = JSON.parse(raw);
           if (parsed && (parsed.email === 'admin@admin.com' || !parsed.email)) {
@@ -101,28 +169,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             parsed.name = parsed.name || 'Miguel Yosafat';
             setCookie('admin_session', JSON.stringify(parsed), 7);
           }
+          recordActiveTime();
           setUser(parsed);
         }
       } catch {
-        deleteCookie('admin_session');
+        clearAllSession();
       }
     }
     setIsLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pasang idle timer saat user login
+  // Lifecycle & User Activity listeners (for mobile background, screen lock, and active taps)
   useEffect(() => {
     if (!user) return;
-    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
-    const handleActivity = () => resetIdleTimer();
-    events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
+
+    // 1. User interaction events (throttled)
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
+    const handleActivity = () => {
+      resetIdleTimer();
+    };
+
+    events.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }));
     resetIdleTimer();
+
+    // 2. Mobile Visibility & App Foreground/Background switch
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        const lastActive = getLastActiveTime();
+        if (lastActive && now - lastActive > IDLE_TIMEOUT_MS) {
+          logoutIdle();
+        } else {
+          resetIdleTimer();
+        }
+      } else if (document.visibilityState === 'hidden') {
+        // App put into background / screen turned off
+        recordActiveTime();
+      }
+    };
+
+    // 3. Page restore from mobile bfcache
+    const handlePageShow = (e: PageTransitionEvent) => {
+      const now = Date.now();
+      const lastActive = getLastActiveTime();
+      if (lastActive && now - lastActive > IDLE_TIMEOUT_MS) {
+        logoutIdle();
+      } else {
+        resetIdleTimer();
+      }
+    };
+
+    // 4. Window focus
+    const handleFocus = () => {
+      const now = Date.now();
+      const lastActive = getLastActiveTime();
+      if (lastActive && now - lastActive > IDLE_TIMEOUT_MS) {
+        logoutIdle();
+      } else {
+        resetIdleTimer();
+      }
+    };
+
+    // 5. Periodic heartbeat interval checking every 10 seconds
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      const lastActive = getLastActiveTime();
+      if (lastActive && now - lastActive > IDLE_TIMEOUT_MS) {
+        logoutIdle();
+      }
+    }, 10000);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pagehide', () => recordActiveTime());
+
     return () => {
-      events.forEach(e => window.removeEventListener(e, handleActivity));
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(intervalId);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [user, resetIdleTimer]);
+  }, [user, resetIdleTimer, logoutIdle]);
 
   const checkCredentials = async (
     usernameOrEmail: string,
@@ -133,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Jika kredensial supabase belum diisi (masih bawaan dari .env.local template)
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-url')) {
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 600));
       if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com') && trimmedPassword === 'admin123') {
         return { valid: true, emailToUse: 'admin@admin.com', dataUser: DEMO_USER };
       }
@@ -144,7 +274,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[Auth] Memverifikasi kredensial input:', trimmedInput);
 
       let emailToUse = trimmedInput;
-      // Check if input is a username (doesn't contain '@')
       if (!trimmedInput.includes('@')) {
         const lowerInput = trimmedInput.toLowerCase();
 
@@ -189,8 +318,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: trimmedPassword,
       });
 
-      // Jika percobaan pertama gagal dan user login dengan username,
-      // coba juga dengan email akun utama workspace sebagai jaring pengaman
       if ((error || !data.user) && !trimmedInput.includes('@') && emailToUse !== 'yosafatmiquel@gmail.com') {
         console.log('[Auth] Mencoba fallback login akun utama...');
         const retry = await supabase.auth.signInWithPassword({
@@ -253,7 +380,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role:   profileRole,
       };
 
+      const now = Date.now();
       setCookie('admin_session', JSON.stringify(loggedInUser), 7);
+      recordActiveTime(now);
       setUser(loggedInUser);
       router.replace('/dashboard');
       return true;
@@ -261,16 +390,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [router]
   );
 
-  const logout = useCallback(() => {
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    deleteCookie('admin_session');
-    deleteCookie('session_last_active');
-    setUser(null);
-    router.replace('/login');
-  }, [router]);
-
   const updateUser = useCallback((updates: Partial<User>) => {
-    setUser(prev => {
+    setUser((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, ...updates };
       setCookie('admin_session', JSON.stringify(updated), 7);
