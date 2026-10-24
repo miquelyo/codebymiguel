@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
+import { ensureWhatsAppGateway } from '@/lib/whatsapp-auto';
 
 const GATEWAY_URL = process.env.WA_GATEWAY_URL || 'http://127.0.0.1:3001';
 
 export async function GET() {
   try {
+    // Pastikan gateway menyala otomatis jika sebelumnya mati
+    await ensureWhatsAppGateway();
+
     const statusRes = await fetch(`${GATEWAY_URL}/status`, {
       method: 'GET',
       signal: AbortSignal.timeout(2500),
@@ -48,6 +52,8 @@ export async function GET() {
       hasQr: statusData.hasQr,
       qrDataUrl,
       qr,
+      pairCode: statusData.pairCode || null,
+      pairPhone: statusData.pairPhone || null,
       targetPhone,
     });
   } catch (error: any) {
@@ -66,12 +72,31 @@ export async function POST(request: Request) {
     const targetPhone = process.env.ADMIN_WHATSAPP_PHONE || '081214412001';
 
     if (action === 'test') {
+      const nowFormatted = new Date().toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        dateStyle: 'full',
+        timeStyle: 'medium',
+      });
+
       const sendRes = await fetch(`${GATEWAY_URL}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: targetPhone,
-          message: `👋 *Halo Miguel!*\n\nKoneksi WhatsApp Gateway Baileys di *CodeByMiguel* berhasil terhubung 100% dan siap mengirimkan kode OTP secara instan & tanpa batas!\n\nWaktu: ${new Date().toLocaleString('id-ID')}`,
+          message: `🚀 *CODEBYMIGUEL | UJI COBA GATEWAY*
+━━━━━━━━━━━━━━━━━━━━━
+
+Halo, *Miguel*! 👋
+
+Koneksi *WhatsApp Gateway Baileys* di *CodebyMiguel* berhasil terhubung 100% dan siap mengirimkan kode OTP secara instan!
+
+📱 *Nomor Pengirim (Bot):* 08993210362
+🎯 *Nomor Penerima (Utama):* ${targetPhone}
+⚡ *Status Layanan:* Siap Kirim OTP
+⏱️ *Waktu Uji Coba:* ${nowFormatted} WIB
+
+━━━━━━━━━━━━━━━━━━━━━
+_Pesan otomatis dari sistem keamanan CodebyMiguel. Mohon jangan membalas pesan ini._`,
         }),
         signal: AbortSignal.timeout(6000),
       });
@@ -87,6 +112,18 @@ export async function POST(request: Request) {
       });
       const logoutData = await logoutRes.json();
       return NextResponse.json(logoutData);
+    }
+
+    if (action === 'pair_code') {
+      const { phone } = body;
+      const pairRes = await fetch(`${GATEWAY_URL}/pair-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const pairData = await pairRes.json();
+      return NextResponse.json(pairData, { status: pairRes.status });
     }
 
     return NextResponse.json({ success: false, message: 'Aksi tidak dikenal' }, { status: 400 });

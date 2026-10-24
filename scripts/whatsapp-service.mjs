@@ -21,6 +21,8 @@ const PORT = process.env.WA_GATEWAY_PORT || 3001;
 let sock = null;
 let currentQR = null;
 let currentQRDataUrl = null;
+let currentPairCode = null;
+let currentPairPhone = null;
 let connectionStatus = 'initializing'; // 'initializing' | 'connecting' | 'scan_qr' | 'connected' | 'disconnected'
 let connectedUser = null;
 let reconnectAttempts = 0;
@@ -92,6 +94,8 @@ async function startWhatsApp() {
       connectedUser = null;
       currentQR = null;
       currentQRDataUrl = null;
+      currentPairCode = null;
+      currentPairPhone = null;
 
       console.log(`[WhatsApp Gateway] Koneksi terputus. Kode: ${statusCode}. Auto reconnect: ${shouldReconnect}`);
 
@@ -116,6 +120,8 @@ async function startWhatsApp() {
       reconnectAttempts = 0;
       currentQR = null;
       currentQRDataUrl = null;
+      currentPairCode = null;
+      currentPairPhone = null;
       connectedUser = sock.user?.id || 'Connected';
       console.log('\n✅ [WhatsApp Gateway] SUKSES! WhatsApp Terhubung!');
       console.log(`Akun: ${sock.user?.id || sock.user?.name || 'WhatsApp Web'}\n`);
@@ -147,6 +153,8 @@ const server = http.createServer(async (req, res) => {
         status: connectionStatus,
         user: connectedUser,
         hasQr: !!currentQR,
+        pairCode: currentPairCode,
+        pairPhone: currentPairPhone,
       })
     );
     return;
@@ -228,6 +236,8 @@ const server = http.createServer(async (req, res) => {
       if (sock) {
         await sock.logout().catch(() => {});
       }
+      currentPairCode = null;
+      currentPairPhone = null;
       fs.rmSync(AUTH_DIR, { recursive: true, force: true });
       startWhatsApp();
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -236,6 +246,35 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: false, message: e.message }));
     }
+    return;
+  }
+
+  // 5. Request Pairing Code (Alternative to QR Code)
+  if (url.pathname === '/pair-code' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', async () => {
+      try {
+        const { phone } = JSON.parse(body || '{}');
+        let clean = String(phone || '').replace(/\D/g, '');
+        if (clean.startsWith('0')) clean = '62' + clean.slice(1);
+        if (!sock) throw new Error('Socket belum siap');
+        if (sock.authState?.creds?.registered) {
+          throw new Error('Akun sudah terhubung. Klik Putus/Ganti Akun terlebih dahulu.');
+        }
+        console.log(`[WhatsApp Gateway] Meminta pairing code untuk nomor: ${clean}`);
+        const code = await sock.requestPairingCode(clean);
+        currentPairCode = code;
+        currentPairPhone = clean;
+        console.log(`[WhatsApp Gateway] Pairing code berhasil di-generate: ${code}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, code, phone: clean }));
+      } catch (err) {
+        console.error('[WhatsApp Gateway Pairing Code Error]:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: err.message || 'Gagal meminta pairing code' }));
+      }
+    });
     return;
   }
 

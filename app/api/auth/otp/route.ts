@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUser2FASettings } from '@/lib/user-settings';
+import { ensureWhatsAppGateway } from '@/lib/whatsapp-auto';
 
 interface OtpData {
   code: string;
@@ -69,10 +70,32 @@ export async function POST(request: Request) {
         phone: targetPhone,
       });
 
-      const otpMessage = `🔐 *KODE KEAMANAN CODEBYMIGUEL*\n\nKode verifikasi login Anda adalah: *${otp}*\n\nKode ini berlaku selama 5 menit. Jangan pernah membagikan kode ini kepada siapa pun demi keamanan akun Anda.`;
+      const otpMessage = `🛡️ *CODEBYMIGUEL | VERIFIKASI KEAMANAN*
+━━━━━━━━━━━━━━━━━━━━━
+
+Halo! 👋
+
+Kami menerima permintaan untuk memverifikasi login ke akun *CodebyMiguel* Anda.
+
+Berikut kode verifikasi sekali pakai (OTP) Anda:
+
+👉 *${otp}* 👈
+
+⏳ *Masa Berlaku:* 5 menit sejak pesan ini diterima.
+
+*Demi keamanan akun Anda:*
+• *Jangan bagikan* kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai tim CodebyMiguel.
+• Kode hanya dapat digunakan *satu kali*.
+• Jika Anda tidak merasa melakukan permintaan login ini, abaikan pesan ini.
+
+Terima kasih telah menggunakan *CodebyMiguel*.
+━━━━━━━━━━━━━━━━━━━━━
+_Pesan otomatis dari sistem keamanan CodebyMiguel. Mohon jangan membalas pesan ini._`;
 
       // ─── 1. Kirim via Baileys WhatsApp Gateway Lokal (100% Gratis & Unlimited) ───
       try {
+        await ensureWhatsAppGateway();
+
         const baileysRes = await fetch(`${gatewayUrl}/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

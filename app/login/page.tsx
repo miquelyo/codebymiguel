@@ -89,13 +89,12 @@ function LoginContent() {
           await login(email.trim(), password);
           return;
         }
+
+        if (checkData.maskedPhone) {
+          setMaskedPhone(checkData.maskedPhone);
+        }
       } catch (checkErr) {
-        console.warn('Fallback ke login langsung:', checkErr);
-        try {
-          localStorage.setItem('codebymiguel_last_user', email.trim());
-        } catch {}
-        await login(email.trim(), password);
-        return;
+        console.warn('Gagal cek status 2FA:', checkErr);
       }
 
       // Jika 2FA Aktif (2FA ON) -> Kirim kode OTP ke WhatsApp
@@ -106,23 +105,17 @@ function LoginContent() {
       });
       const sendData = await sendRes.json();
 
+      setStep('2fa');
       if (sendData.success) {
         setMaskedPhone(sendData.maskedPhone || 'WhatsApp Anda');
         toast.success('Kode OTP berhasil dikirim ke WhatsApp Anda!');
-        setStep('2fa');
         setResendCountdown(60);
         setTimeout(() => {
           otpInputRef.current?.focus();
         }, 200);
       } else {
-        // Jika gateway offline, jangan kunci user di luar! Masuk langsung dengan kredensial yang valid
-        console.warn('WhatsApp gateway offline:', sendData.message);
-        toast('Gateway WhatsApp offline. Masuk dengan verifikasi password...', { icon: '⚠️' });
-        try {
-          localStorage.setItem('codebymiguel_last_user', email.trim());
-        } catch {}
-        await login(email.trim(), password);
-        return;
+        setError(sendData.message || 'Gagal mengirim kode ke WhatsApp. Silakan gunakan tombol kirim ulang atau opsi darurat.');
+        toast.error(sendData.message || 'WhatsApp Gateway belum siap. Silakan kirim ulang kode.');
       }
     } catch (err) {
       console.error('Error during login request:', err);
@@ -207,6 +200,14 @@ function LoginContent() {
       toast.dismiss(loadingToast);
       toast.error('Gagal menghubungi server.');
     }
+  };
+
+  const handleEmergencyLogin = async () => {
+    toast('Masuk menggunakan kredensial terverifikasi...', { icon: '🛡️' });
+    try {
+      localStorage.setItem('codebymiguel_last_user', email.trim());
+    } catch {}
+    await login(email.trim(), password);
   };
 
   const isFormValid = email.trim().length > 0 && password.trim().length > 0;
@@ -552,6 +553,17 @@ function LoginContent() {
                       Kirim Ulang Kode
                     </button>
                   )}
+                </div>
+
+                {/* Emergency bypass if phone unavailable */}
+                <div className="mt-4 pt-3 border-t border-zinc-100 text-center">
+                  <button
+                    type="button"
+                    onClick={handleEmergencyLogin}
+                    className="text-[11px] text-zinc-400 hover:text-zinc-600 underline transition-colors cursor-pointer"
+                  >
+                    Kendala menerima WhatsApp? Masuk dengan password terverifikasi
+                  </button>
                 </div>
               </motion.div>
             )}

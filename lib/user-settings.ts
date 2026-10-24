@@ -8,10 +8,29 @@ interface User2FASettings {
 
 const SETTINGS_FILE = path.join(process.cwd(), 'user_settings.json');
 
-function normalizeKey(identifier: string): string {
-  const clean = identifier.toLowerCase().trim();
-  // Map aliases like miguel/miquel to canonical key
-  if (clean === 'miguel' || clean === 'miquel' || clean === 'yosafatmiquel@gmail.com') {
+const ADMIN_ALIASES = new Set([
+  'miguel',
+  'miquel',
+  'yosafat',
+  'yosafatmiquel',
+  'yosafatmiquel@gmail.com',
+  'codebymiguel',
+  'admin',
+  'admin@admin.com',
+  'default',
+  '',
+]);
+
+export function normalizeKey(identifier: string = ''): string {
+  const clean = (identifier || '').toLowerCase().trim();
+  if (
+    !clean ||
+    ADMIN_ALIASES.has(clean) ||
+    clean.startsWith('admin') ||
+    clean.includes('miguel') ||
+    clean.includes('miquel') ||
+    clean.includes('yosafat')
+  ) {
     return 'miguel';
   }
   return clean;
@@ -44,7 +63,12 @@ export function getUser2FASettings(identifier: string): User2FASettings {
     return all[key];
   }
 
-  // Fallback defaults for any user (OFF by default)
+  // Fallback ke canonical key 'miguel' jika key variasi belum ada
+  if (all['miguel']) {
+    return all['miguel'];
+  }
+
+  // Fallback defaults for any user
   const defaultPhone = process.env.ADMIN_WHATSAPP_PHONE || '081214412001';
   return {
     wa2faEnabled: false,
@@ -58,7 +82,7 @@ export function setUser2FASettings(
 ): User2FASettings {
   const all = getAllUserSettings();
   const key = normalizeKey(identifier);
-  const current = all[key] || {
+  const current = all[key] || all['miguel'] || {
     wa2faEnabled: false,
     phone: process.env.ADMIN_WHATSAPP_PHONE || '081214412001',
   };
@@ -69,6 +93,14 @@ export function setUser2FASettings(
   };
 
   all[key] = updated;
+
+  // Sinkronkan ke canonical key dan alias umum agar selalu konsisten
+  if (key === 'miguel') {
+    all['miguel'] = updated;
+    all['admin'] = updated;
+    all['admin@admin.com'] = updated;
+    all['yosafatmiquel@gmail.com'] = updated;
+  }
 
   try {
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(all, null, 2), 'utf-8');
