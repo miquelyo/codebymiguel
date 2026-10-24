@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -7,106 +6,120 @@ import { useAuth } from '@/app/components/AuthProvider';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/app/components/ConfirmModal';
 
+/* ─── Types ──────────────────────────────────────────────── */
 interface AIAgent {
-  id: string;
-  user_email?: string;
-  email_account: string;
-  gemini_refresh_at: string | null;
-  claude_gpt_refresh_at: string | null;
-  created_at?: string;
+  id: string; user_email?: string; email_account: string;
+  gemini_refresh_at: string | null; claude_gpt_refresh_at: string | null; created_at?: string;
 }
+interface CooldownInfo { isReady: boolean; countdownText: string; targetDateTimeText: string; progressPercent: number; diffMs: number; }
 
-interface CooldownInfo {
-  isReady: boolean;
-  statusBadge: string;
-  countdownText: string;
-  targetDateTimeText: string;
-  progressPercent: number; // 0 (ready) to 100 (in cooldown)
-  diffMs: number;
-}
-
-// ─── Helpers: Time Formatting & Calculations ──────────────────────────────
+/* ─── Helpers ────────────────────────────────────────────── */
 function parseCooldown(targetStr: string | null, nowMs: number): CooldownInfo {
-  if (!targetStr) {
-    return {
-      isReady: true,
-      statusBadge: 'READY',
-      countdownText: 'Siap Pakai',
-      targetDateTimeText: 'Tidak ada batasan waktu',
-      progressPercent: 0,
-      diffMs: 0,
-    };
-  }
+  if (!targetStr) return { isReady: true, countdownText: 'Siap Pakai', targetDateTimeText: 'Tidak ada batasan', progressPercent: 0, diffMs: 0 };
+  const targetMs = new Date(targetStr).getTime(); const diffMs = targetMs - nowMs;
+  const fd = new Date(targetStr).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  if (isNaN(targetMs) || diffMs <= 0) return { isReady: true, countdownText: 'Siap Pakai', targetDateTimeText: 'Selesai sejak ' + fd, progressPercent: 0, diffMs: 0 };
+  const ts = Math.floor(diffMs / 1000); const dv = Math.floor(ts / 86400); const hv = Math.floor((ts % 86400) / 3600); const mv = Math.floor((ts % 3600) / 60); const sv = ts % 60;
+  const ct = dv > 0 ? (dv + 'h ' + hv + 'j ' + mv + 'm') : hv > 0 ? (hv + 'j ' + mv + 'm ' + sv + 'd') : (mv + 'm ' + sv + 'd');
+  return { isReady: false, countdownText: ct, targetDateTimeText: 'Reset: ' + fd + ' WIB', progressPercent: Math.min(100, Math.max(5, Math.round((diffMs / Math.max(diffMs, 86400000)) * 100))), diffMs };
+}
+function toLocal(s: string | null): string { if (!s) return ''; const d = new Date(s); return isNaN(d.getTime()) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+function fromLocal(s: string): string | null { if (!s) return null; const d = new Date(s); return isNaN(d.getTime()) ? null : d.toISOString(); }
 
-  const targetMs = new Date(targetStr).getTime();
-  const diffMs = targetMs - nowMs;
-
-  const targetDate = new Date(targetStr);
-  const formattedDate = targetDate.toLocaleDateString('id-ID', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  if (isNaN(targetMs) || diffMs <= 0) {
-    return {
-      isReady: true,
-      statusBadge: 'READY',
-      countdownText: 'Siap Pakai (Selesai)',
-      targetDateTimeText: `Cooldown selesai sejak ${formattedDate}`,
-      progressPercent: 0,
-      diffMs: 0,
-    };
-  }
-
-  const totalSecs = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSecs / 86400);
-  const hours = Math.floor((totalSecs % 86400) / 3600);
-  const minutes = Math.floor((totalSecs % 3600) / 60);
-  const seconds = totalSecs % 60;
-
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days} hr`);
-  if (hours > 0 || days > 0) parts.push(`${hours} jam`);
-  parts.push(`${minutes} mnt`);
-  if (days === 0 && hours < 6) {
-    parts.push(`${seconds} dtk`);
-  }
-
-  // Progress relative to 24h baseline (or actual diff if longer)
-  const maxRef = Math.max(diffMs, 24 * 60 * 60 * 1000);
-  const progressPercent = Math.min(100, Math.max(10, Math.round((diffMs / maxRef) * 100)));
-
-  return {
-    isReady: false,
-    statusBadge: 'COOLDOWN',
-    countdownText: parts.join(' '),
-    targetDateTimeText: `Reset: ${formattedDate} WIB`,
-    progressPercent,
-    diffMs,
-  };
+/* ─── StatusPill ─────────────────────────────────────────── */
+function StatusPill({ isReady, text }: { isReady: boolean; text?: string }) {
+  return (
+    <span className={[
+      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold',
+      isReady
+        ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 dark:text-emerald-400'
+        : 'bg-amber-500/15 text-amber-600 border border-amber-500/30 dark:text-amber-400',
+    ].join(' ')}>
+      <span className={['w-1.5 h-1.5 rounded-full', isReady ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'].join(' ')} />
+      {text ?? (isReady ? 'READY' : 'COOLDOWN')}
+    </span>
+  );
 }
 
-// Convert UTC target string to ISO local datetime string for <input type="datetime-local" />
-function toLocalDatetimeInput(targetStr: string | null): string {
-  if (!targetStr) return '';
-  const d = new Date(targetStr);
-  if (isNaN(d.getTime())) return '';
-  const tzOffset = d.getTimezoneOffset() * 60000;
-  const localTime = new Date(d.getTime() - tzOffset);
-  return localTime.toISOString().slice(0, 16);
+/* ─── ModelRow ───────────────────────────────────────────── */
+function ModelRow({ label, dotColor, barColor, cooldown, agentId, model, onQuickReset, presets }: {
+  label: string; dotColor: string; barColor: string; cooldown: CooldownInfo; agentId: string;
+  model: 'claude_gpt' | 'gemini'; onQuickReset: (id: string, m: 'claude_gpt' | 'gemini', h: number) => void; presets: number[];
+}) {
+  return (
+    <div className={['rounded-2xl border transition-all', cooldown.isReady ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-surface border-border'].join(' ')}>
+      <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+        <div className="flex items-center gap-2">
+          <span className={['w-2 h-2 rounded-full', cooldown.isReady ? 'bg-emerald-500 animate-pulse' : dotColor].join(' ')} />
+          <span className="text-[13px] font-semibold text-foreground">{label}</span>
+        </div>
+        <StatusPill isReady={cooldown.isReady} />
+      </div>
+      <div className="px-4 pb-3">
+        {cooldown.isReady ? (
+          <span className="text-2xl font-black text-emerald-500 font-mono">✓ Siap Pakai</span>
+        ) : (
+          <>
+            <div className="font-mono font-black text-2xl sm:text-3xl text-foreground tracking-tight">{cooldown.countdownText}</div>
+            <p className="text-[11px] text-muted mt-0.5">{cooldown.targetDateTimeText}</p>
+            <div className="mt-2.5 h-1.5 bg-surface-hover rounded-full overflow-hidden">
+              <motion.div className={['h-full rounded-full', barColor].join(' ')} initial={{ width: 0 }} animate={{ width: cooldown.progressPercent + '%' }} transition={{ duration: 0.8, ease: 'easeOut' }} />
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 px-4 pb-3.5 flex-wrap">
+        <span className="text-[10px] text-muted font-semibold mr-1">Set:</span>
+        {presets.map((h) => (
+          <button key={h} onClick={() => onQuickReset(agentId, model, h)} className="px-2.5 py-1 rounded-lg bg-surface-hover hover:bg-border text-[11px] font-bold text-muted hover:text-foreground cursor-pointer transition-all active:scale-95">
+            +{h}j
+          </button>
+        ))}
+        <button onClick={() => onQuickReset(agentId, model, 0)} className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-bold text-emerald-500 cursor-pointer transition-all active:scale-95 border border-emerald-500/20">
+          ✓ Ready
+        </button>
+      </div>
+    </div>
+  );
 }
 
-// Convert local datetime string to UTC ISO string
-function fromLocalDatetimeInput(localStr: string): string | null {
-  if (!localStr) return null;
-  const d = new Date(localStr);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString();
+/* ─── ModeSelector ───────────────────────────────────────── */
+type CooldownMode = 'ready' | 'preset' | 'custom_duration' | 'datetime';
+const MODE_LABELS: Record<CooldownMode, string> = { ready: 'Ready', preset: 'Preset', custom_duration: 'Durasi', datetime: 'Tanggal' };
+
+function ModeSelector({ value, onChange, accentClass }: { value: CooldownMode; onChange: (v: CooldownMode) => void; accentClass: string }) {
+  return (
+    <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-surface-hover/60 text-[11px] font-semibold text-center">
+      {(Object.keys(MODE_LABELS) as CooldownMode[]).map((k) => (
+        <button key={k} type="button" onClick={() => onChange(k)}
+          className={['py-1.5 rounded-lg transition-all cursor-pointer', value === k ? (k === 'ready' ? 'bg-emerald-500 text-white shadow-sm' : accentClass + ' text-white shadow-sm') : 'text-muted hover:text-foreground'].join(' ')}>
+          {MODE_LABELS[k]}
+        </button>
+      ))}
+    </div>
+  );
 }
 
+/* ─── DurationInputs ─────────────────────────────────────── */
+function DurationInputs({ days, hours, minutes, setDays, setHours, setMinutes }: {
+  days: number; hours: number; minutes: number;
+  setDays: (v: number) => void; setHours: (v: number) => void; setMinutes: (v: number) => void;
+}) {
+  const fields = [{ label: 'Hari', val: days, set: setDays, max: 30 }, { label: 'Jam', val: hours, set: setHours, max: 23 }, { label: 'Menit', val: minutes, set: setMinutes, max: 59 }];
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {fields.map(({ label, val, set, max }) => (
+        <div key={label}>
+          <label className="text-[10px] text-muted block mb-1">{label}</label>
+          <input type="number" min={0} max={max} value={val} onChange={(e) => set(Math.max(0, parseInt(e.target.value) || 0))}
+            className="w-full h-9 px-3 rounded-xl bg-surface border border-border text-xs text-foreground font-mono outline-none focus:border-violet-500/60" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Main Page ──────────────────────────────────────────── */
 export default function AITrackerPage() {
   const { user } = useAuth();
   const [agents, setAgents] = useState<AIAgent[]>([]);
@@ -116,1179 +129,419 @@ export default function AITrackerPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
-
-  // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'ready' | 'cooldown' | 'claude_ready' | 'gemini_ready'>('all');
-
-  // Real-time ticker: updates every second for countdown and clock precision
+  const [filterType, setFilterType] = useState<'all' | 'ready' | 'cooldown'>('all');
   const [nowMs, setNowMs] = useState<number>(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
-  // Form State
+  // Form state
   const [formEmail, setFormEmail] = useState('');
-  // Model 1: Claude & GPT
-  const [claudeMode, setClaudeMode] = useState<'ready' | 'preset' | 'custom_duration' | 'datetime'>('ready');
+  const [claudeMode, setClaudeMode] = useState<CooldownMode>('ready');
   const [claudeHours, setClaudeHours] = useState(5);
   const [claudeDays, setClaudeDays] = useState(0);
   const [claudeMinutes, setClaudeMinutes] = useState(0);
   const [claudeDatetime, setClaudeDatetime] = useState('');
-
-  // Model 2: Google Gemini
-  const [geminiMode, setGeminiMode] = useState<'ready' | 'preset' | 'custom_duration' | 'datetime'>('ready');
+  const [geminiMode, setGeminiMode] = useState<CooldownMode>('ready');
   const [geminiHours, setGeminiHours] = useState(24);
   const [geminiDays, setGeminiDays] = useState(0);
   const [geminiMinutes, setGeminiMinutes] = useState(0);
   const [geminiDatetime, setGeminiDatetime] = useState('');
 
-  // Load all agents from Supabase
+  useEffect(() => { const t = setInterval(() => setNowMs(Date.now()), 1000); return () => clearInterval(t); }, []);
+
   const loadAgents = useCallback(async (showToast = false) => {
     try {
       if (showToast) setIsRefreshing(true);
-      const emailToQuery = user?.email || 'yosafatmiquel@gmail.com';
-
-      // Select all records for the admin/workspace
-      let query = supabase.from('ai_agents').select('*');
-      if (user?.role === 'Super Admin' || emailToQuery === 'yosafatmiquel@gmail.com') {
-        query = query.or(`user_email.eq.${emailToQuery},user_email.eq.yosafatmiquel@gmail.com,user_email.is.null`);
-      } else {
-        query = query.or(`user_email.eq.${emailToQuery},user_email.eq.yosafatmiquel@gmail.com`);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading AI agents:', error);
-        toast.error('Gagal mengambil data AI Tracker: ' + error.message);
-      } else {
-        setAgents(data || []);
-        if (showToast) toast.success('Data AI Agent berhasil diperbarui!');
-      }
-    } catch (err) {
-      console.error('Unexpected error loading AI agents:', err);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
+      const eq = user?.email || 'yosafatmiquel@gmail.com';
+      let q = supabase.from('ai_agents').select('*');
+      q = (user?.role === 'Super Admin' || eq === 'yosafatmiquel@gmail.com')
+        ? q.or('user_email.eq.' + eq + ',user_email.eq.yosafatmiquel@gmail.com,user_email.is.null')
+        : q.or('user_email.eq.' + eq + ',user_email.eq.yosafatmiquel@gmail.com');
+      const { data, error } = await q.order('created_at', { ascending: false });
+      if (error) toast.error('Gagal: ' + error.message);
+      else { setAgents(data || []); if (showToast) toast.success('Data diperbarui!'); }
+    } catch { /* noop */ } finally { setLoading(false); setIsRefreshing(false); }
   }, [user]);
 
-  useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
+  useEffect(() => { loadAgents(); }, [loadAgents]);
 
-  // Compute live parsed statuses for all agents
-  const parsedAgents = useMemo(() => {
-    return agents.map((ag) => {
-      const claude = parseCooldown(ag.claude_gpt_refresh_at, nowMs);
-      const gemini = parseCooldown(ag.gemini_refresh_at, nowMs);
-      const isAnyReady = claude.isReady || gemini.isReady;
-      const isBothReady = claude.isReady && gemini.isReady;
-      const isBothCooldown = !claude.isReady && !gemini.isReady;
+  const parsedAgents = useMemo(() => agents.map((ag) => {
+    const claude = parseCooldown(ag.claude_gpt_refresh_at, nowMs);
+    const gemini = parseCooldown(ag.gemini_refresh_at, nowMs);
+    const isBothReady = claude.isReady && gemini.isReady;
+    const isAnyReady = claude.isReady || gemini.isReady;
+    const isBothCooldown = !claude.isReady && !gemini.isReady;
+    let nextMs = Infinity;
+    if (!claude.isReady && claude.diffMs > 0) nextMs = Math.min(nextMs, claude.diffMs);
+    if (!gemini.isReady && gemini.diffMs > 0) nextMs = Math.min(nextMs, gemini.diffMs);
+    return { ...ag, claude, gemini, isBothReady, isAnyReady, isBothCooldown, nextAvailableMs: nextMs === Infinity ? 0 : nextMs };
+  }), [agents, nowMs]);
 
-      // Smallest non-zero diff among cooldowns
-      let nextAvailableMs = Infinity;
-      if (!claude.isReady && claude.diffMs > 0) nextAvailableMs = Math.min(nextAvailableMs, claude.diffMs);
-      if (!gemini.isReady && gemini.diffMs > 0) nextAvailableMs = Math.min(nextAvailableMs, gemini.diffMs);
-
-      return {
-        ...ag,
-        claude,
-        gemini,
-        isAnyReady,
-        isBothReady,
-        isBothCooldown,
-        nextAvailableMs: nextAvailableMs === Infinity ? 0 : nextAvailableMs,
-      };
-    });
-  }, [agents, nowMs]);
-
-  // Global Radar Statistics
   const stats = useMemo(() => {
     const total = parsedAgents.length;
-    const claudeReadyCount = parsedAgents.filter((a) => a.claude.isReady).length;
-    const geminiReadyCount = parsedAgents.filter((a) => a.gemini.isReady).length;
-    const allReadyCount = parsedAgents.filter((a) => a.isBothReady).length;
-    const cooldownCount = parsedAgents.filter((a) => a.isBothCooldown).length;
-
-    // Find the account with the fastest upcoming cooldown
-    const cooldownItems = parsedAgents.filter((a) => !a.isBothReady && a.nextAvailableMs > 0);
-    cooldownItems.sort((a, b) => a.nextAvailableMs - b.nextAvailableMs);
-    const fastest = cooldownItems[0] || null;
-
-    let fastestText = 'Semua akun siap digunakan';
-    if (fastest) {
-      const totalSec = Math.floor(fastest.nextAvailableMs / 1000);
-      const h = Math.floor(totalSec / 3600);
-      const m = Math.floor((totalSec % 3600) / 60);
-      const s = totalSec % 60;
-      fastestText = `${fastest.email_account.split('@')[0]} siap dlm ${h > 0 ? `${h}j ` : ''}${m}m ${s}s`;
-    }
-
-    return {
-      total,
-      claudeReadyCount,
-      geminiReadyCount,
-      allReadyCount,
-      cooldownCount,
-      fastestAccount: fastest,
-      fastestText,
-    };
+    const claudeReady = parsedAgents.filter((a) => a.claude.isReady).length;
+    const geminiReady = parsedAgents.filter((a) => a.gemini.isReady).length;
+    const allReady = parsedAgents.filter((a) => a.isBothReady).length;
+    const fastest = parsedAgents.filter((a) => !a.isBothReady && a.nextAvailableMs > 0).sort((a, b) => a.nextAvailableMs - b.nextAvailableMs)[0] || null;
+    return { total, claudeReady, geminiReady, allReady, fastest };
   }, [parsedAgents]);
 
-  // Filtered Agents
-  const filteredAgents = useMemo(() => {
-    return parsedAgents.filter((ag) => {
-      // Search
-      const matchSearch =
-        ag.email_account.toLowerCase().includes(searchQuery.toLowerCase());
-      if (!matchSearch) return false;
+  const filteredAgents = useMemo(() => parsedAgents.filter((ag) => {
+    if (!ag.email_account.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterType === 'ready') return ag.isAnyReady;
+    if (filterType === 'cooldown') return ag.isBothCooldown;
+    return true;
+  }), [parsedAgents, searchQuery, filterType]);
 
-      // Filter
-      if (filterType === 'ready') return ag.claude.isReady || ag.gemini.isReady;
-      if (filterType === 'cooldown') return !ag.claude.isReady || !ag.gemini.isReady;
-      if (filterType === 'claude_ready') return ag.claude.isReady;
-      if (filterType === 'gemini_ready') return ag.gemini.isReady;
-      return true;
-    });
-  }, [parsedAgents, searchQuery, filterType]);
-
-  // Copy email helper
   const handleCopyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
     setCopiedEmail(email);
-    toast.success(`Email disalin: ${email}`);
+    toast.success('Email disalin!');
     setTimeout(() => setCopiedEmail(null), 2500);
   };
 
-  // Quick Reset Handler (Sets time or resets to Ready)
-  const handleQuickReset = async (
-    agentId: string,
-    model: 'claude_gpt' | 'gemini',
-    hours: number
-  ) => {
-    const target = hours > 0 ? new Date(Date.now() + hours * 3600 * 1000).toISOString() : null;
+  const handleQuickReset = async (agentId: string, model: 'claude_gpt' | 'gemini', hours: number) => {
+    const target = hours > 0 ? new Date(Date.now() + hours * 3600000).toISOString() : null;
     const updates: Record<string, string | null> = {};
     if (model === 'claude_gpt') updates.claude_gpt_refresh_at = target;
     if (model === 'gemini') updates.gemini_refresh_at = target;
-
-    // Optimistic update in UI
-    setAgents((prev) =>
-      prev.map((a) => (a.id === agentId ? { ...a, ...updates } : a))
-    );
-
+    setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, ...updates } : a)));
     const { error } = await supabase.from('ai_agents').update(updates).eq('id', agentId);
-    if (error) {
-      toast.error('Gagal memperbarui: ' + error.message);
-      loadAgents();
-    } else {
-      const label = model === 'claude_gpt' ? 'Claude / GPT' : 'Gemini Pro';
-      toast.success(
-        hours > 0 ? `${label} diatur ke ${hours} jam dari sekarang!` : `${label} direset ke Siap Pakai!`
-      );
-    }
+    if (error) { toast.error('Gagal: ' + error.message); loadAgents(); }
+    else toast.success(hours > 0 ? 'Set +' + hours + 'j berhasil!' : 'Direset ke Siap Pakai!');
   };
 
-  // Open Add Modal
-  const openAddModal = () => {
-    setEditingAgent(null);
+  const resetForm = () => {
     setFormEmail('');
-    setClaudeMode('ready');
-    setClaudeHours(5);
-    setClaudeDays(0);
-    setClaudeMinutes(0);
-    setClaudeDatetime('');
-
-    setGeminiMode('ready');
-    setGeminiHours(24);
-    setGeminiDays(0);
-    setGeminiMinutes(0);
-    setGeminiDatetime('');
-    setIsModalOpen(true);
+    setClaudeMode('ready'); setClaudeHours(5); setClaudeDays(0); setClaudeMinutes(0); setClaudeDatetime('');
+    setGeminiMode('ready'); setGeminiHours(24); setGeminiDays(0); setGeminiMinutes(0); setGeminiDatetime('');
   };
 
-  // Open Edit Modal
+  const openAddModal = () => { setEditingAgent(null); resetForm(); setIsModalOpen(true); };
+
   const openEditModal = (ag: AIAgent) => {
-    setEditingAgent(ag);
-    setFormEmail(ag.email_account);
-
-    // Initialize Claude settings
+    setEditingAgent(ag); setFormEmail(ag.email_account);
     if (!ag.claude_gpt_refresh_at || new Date(ag.claude_gpt_refresh_at).getTime() <= Date.now()) {
-      setClaudeMode('ready');
-      setClaudeHours(5);
-      setClaudeDays(0);
-      setClaudeMinutes(0);
-      setClaudeDatetime('');
-    } else {
-      setClaudeMode('datetime');
-      setClaudeDatetime(toLocalDatetimeInput(ag.claude_gpt_refresh_at));
-      const diffMs = new Date(ag.claude_gpt_refresh_at).getTime() - Date.now();
-      const totalMins = Math.max(0, Math.round(diffMs / 60000));
-      setClaudeDays(Math.floor(totalMins / 1440));
-      setClaudeHours(Math.floor((totalMins % 1440) / 60));
-      setClaudeMinutes(totalMins % 60);
-    }
-
-    // Initialize Gemini settings
+      setClaudeMode('ready'); setClaudeHours(5); setClaudeDays(0); setClaudeMinutes(0); setClaudeDatetime('');
+    } else { setClaudeMode('datetime'); setClaudeDatetime(toLocal(ag.claude_gpt_refresh_at)); }
     if (!ag.gemini_refresh_at || new Date(ag.gemini_refresh_at).getTime() <= Date.now()) {
-      setGeminiMode('ready');
-      setGeminiHours(24);
-      setGeminiDays(0);
-      setGeminiMinutes(0);
-      setGeminiDatetime('');
-    } else {
-      setGeminiMode('datetime');
-      setGeminiDatetime(toLocalDatetimeInput(ag.gemini_refresh_at));
-      const diffMs = new Date(ag.gemini_refresh_at).getTime() - Date.now();
-      const totalMins = Math.max(0, Math.round(diffMs / 60000));
-      setGeminiDays(Math.floor(totalMins / 1440));
-      setGeminiHours(Math.floor((totalMins % 1440) / 60));
-      setGeminiMinutes(totalMins % 60);
-    }
-
+      setGeminiMode('ready'); setGeminiHours(24); setGeminiDays(0); setGeminiMinutes(0); setGeminiDatetime('');
+    } else { setGeminiMode('datetime'); setGeminiDatetime(toLocal(ag.gemini_refresh_at)); }
     setIsModalOpen(true);
   };
 
-  // Compute final ISO target for Claude from modal form
-  const getClaudeTargetISO = (): string | null => {
+  const getClaudeISO = (): string | null => {
     if (claudeMode === 'ready') return null;
-    if (claudeMode === 'preset') {
-      return new Date(Date.now() + claudeHours * 3600 * 1000).toISOString();
-    }
-    if (claudeMode === 'datetime') {
-      return fromLocalDatetimeInput(claudeDatetime);
-    }
-    if (claudeMode === 'custom_duration') {
-      const ms = claudeDays * 86400000 + claudeHours * 3600000 + claudeMinutes * 60000;
-      if (ms <= 0) return null;
-      return new Date(Date.now() + ms).toISOString();
-    }
-    return null;
+    if (claudeMode === 'preset') return new Date(Date.now() + claudeHours * 3600000).toISOString();
+    if (claudeMode === 'datetime') return fromLocal(claudeDatetime);
+    const ms = claudeDays * 86400000 + claudeHours * 3600000 + claudeMinutes * 60000;
+    return ms <= 0 ? null : new Date(Date.now() + ms).toISOString();
   };
-
-  // Compute final ISO target for Gemini from modal form
-  const getGeminiTargetISO = (): string | null => {
+  const getGeminiISO = (): string | null => {
     if (geminiMode === 'ready') return null;
-    if (geminiMode === 'preset') {
-      return new Date(Date.now() + geminiHours * 3600 * 1000).toISOString();
-    }
-    if (geminiMode === 'datetime') {
-      return fromLocalDatetimeInput(geminiDatetime);
-    }
-    if (geminiMode === 'custom_duration') {
-      const ms = geminiDays * 86400000 + geminiHours * 3600000 + geminiMinutes * 60000;
-      if (ms <= 0) return null;
-      return new Date(Date.now() + ms).toISOString();
-    }
-    return null;
+    if (geminiMode === 'preset') return new Date(Date.now() + geminiHours * 3600000).toISOString();
+    if (geminiMode === 'datetime') return fromLocal(geminiDatetime);
+    const ms = geminiDays * 86400000 + geminiHours * 3600000 + geminiMinutes * 60000;
+    return ms <= 0 ? null : new Date(Date.now() + ms).toISOString();
   };
 
-  // Form Submit (Add or Edit)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formEmail.trim()) {
-      toast.error('Mohon masukkan email atau nama akun');
-      return;
-    }
-
+    if (!formEmail.trim()) { toast.error('Masukkan email atau nama akun'); return; }
     const userEmail = user?.email || 'yosafatmiquel@gmail.com';
-    const claudeTarget = getClaudeTargetISO();
-    const geminiTarget = getGeminiTargetISO();
-
+    const payload = { email_account: formEmail.trim(), claude_gpt_refresh_at: getClaudeISO(), gemini_refresh_at: getGeminiISO() };
     if (editingAgent) {
-      const { error } = await supabase
-        .from('ai_agents')
-        .update({
-          email_account: formEmail.trim(),
-          claude_gpt_refresh_at: claudeTarget,
-          gemini_refresh_at: geminiTarget,
-        })
-        .eq('id', editingAgent.id);
-
-      if (error) {
-        toast.error('Gagal memperbarui akun: ' + error.message);
-        return;
-      }
-      toast.success('Akun AI berhasil diperbarui!');
+      const { error } = await supabase.from('ai_agents').update(payload).eq('id', editingAgent.id);
+      if (error) { toast.error('Gagal: ' + error.message); return; }
+      toast.success('Akun diperbarui!');
     } else {
-      const { error } = await supabase.from('ai_agents').insert({
-        user_email: userEmail,
-        email_account: formEmail.trim(),
-        claude_gpt_refresh_at: claudeTarget,
-        gemini_refresh_at: geminiTarget,
-      });
-
-      if (error) {
-        toast.error('Gagal menambahkan akun: ' + error.message);
-        return;
-      }
-      toast.success('Akun AI baru berhasil ditambahkan!');
+      const { error } = await supabase.from('ai_agents').insert({ user_email: userEmail, ...payload });
+      if (error) { toast.error('Gagal: ' + error.message); return; }
+      toast.success('Akun baru ditambahkan!');
     }
-
-    setIsModalOpen(false);
-    loadAgents();
+    setIsModalOpen(false); loadAgents();
   };
 
-  // Execute Delete
   const executeDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from('ai_agents').delete().eq('id', deleteId);
-    if (error) {
-      toast.error('Gagal menghapus akun: ' + error.message);
-    } else {
-      toast.success('Akun AI berhasil dihapus!');
-      setAgents((prev) => prev.filter((a) => a.id !== deleteId));
-    }
+    if (error) toast.error('Gagal: ' + error.message);
+    else { toast.success('Akun dihapus!'); setAgents((prev) => prev.filter((a) => a.id !== deleteId)); }
     setDeleteId(null);
   };
 
+  /* ── Render ──────────────────────────────────────────────── */
   return (
-    <div className="space-y-6 sm:space-y-8 pb-12">
-      {/* ── Top Header & Title ─────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5 sm:space-y-6 pb-12">
+
+      {/* ── Page Header ─────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50" />
-            <span className="text-[11px] font-mono font-bold tracking-wider uppercase text-primary">
-              AI Command Radar
-            </span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse shadow-sm shadow-violet-500/50" />
+            <span className="text-[11px] font-mono font-bold tracking-widest uppercase text-muted">AI Command Center</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
             AI Agent Tracker
           </h1>
-          <p className="text-muted text-xs sm:text-sm mt-0.5">
-            Pantau limit akun Claude 3.5 Sonnet, GPT-4o, dan Google Gemini Pro secara presisi real-time.
-          </p>
+          <p className="text-sm text-muted mt-1">Pantau cooldown Claude, ChatGPT &amp; Gemini secara real-time.</p>
         </div>
-
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => loadAgents(true)}
-            disabled={isRefreshing}
-            className="h-10 px-3.5 rounded-2xl bg-surface hover:bg-surface-hover border border-border text-xs font-bold text-foreground flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60"
-            title="Sinkronisasi Data"
-          >
-            <svg
-              className={`w-4 h-4 text-primary ${isRefreshing ? 'animate-spin' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => loadAgents(true)} disabled={isRefreshing}
+            className="h-10 w-10 rounded-2xl bg-surface hover:bg-surface-hover border border-border text-muted hover:text-foreground flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50" title="Refresh">
+            <svg className={['w-4 h-4', isRefreshing ? 'animate-spin' : ''].join(' ')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
             </svg>
-            <span className="hidden sm:inline">Refresh</span>
           </button>
-
-          <button
-            onClick={openAddModal}
-            className="h-10 px-4 sm:px-5 rounded-2xl font-bold text-xs text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-            style={{ background: 'var(--gradient-primary)' }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span>Tambah Akun Baru</span>
+          <button onClick={openAddModal}
+            className="h-10 px-5 rounded-2xl font-bold text-sm text-white shadow-lg shadow-violet-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
+            style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)' }}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            Tambah Akun
           </button>
         </div>
       </div>
 
-      {/* ── Control Center Stats Bento ────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
-        {/* Stat 1: Total Akun */}
-        <div className="glass-card p-4 sm:p-5 relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Total Akun AI</span>
-            <div className="w-7 h-7 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-              AI
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">{stats.total}</div>
-            <p className="text-[10px] sm:text-[11px] text-muted mt-0.5 truncate">
-              {stats.allReadyCount} Akun 100% Siap Pakai
-            </p>
-          </div>
+      {/* ── Stats ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="card p-4 flex flex-col gap-1.5">
+          <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Total Akun</span>
+          <span className="text-3xl font-black text-foreground font-mono">{stats.total}</span>
+          <span className="text-[11px] text-muted">{stats.allReady} semua ready</span>
         </div>
-
-        {/* Stat 2: Claude / GPT Ready */}
-        <div className="glass-card p-4 sm:p-5 relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Claude / GPT</span>
-            <div className="w-7 h-7 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold text-xs">
-              CL
-            </div>
+        <div className="card p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Claude/GPT</span>
+            <span className="w-5 h-5 rounded-lg bg-orange-500/15 flex items-center justify-center text-[9px] font-black text-orange-500">C</span>
           </div>
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">
-                {stats.claudeReadyCount}
+          <span className="text-3xl font-black text-foreground font-mono">{stats.claudeReady}</span>
+          <div className="h-1 bg-surface-hover rounded-full overflow-hidden">
+            <div className="h-full bg-orange-500 rounded-full transition-all duration-700" style={{ width: (stats.total > 0 ? (stats.claudeReady / stats.total) * 100 : 0) + '%' }} />
+          </div>
+          <span className="text-[11px] text-muted">dari {stats.total} ready</span>
+        </div>
+        <div className="card p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Gemini</span>
+            <span className="w-5 h-5 rounded-lg bg-blue-500/15 flex items-center justify-center text-[9px] font-black text-blue-500">G</span>
+          </div>
+          <span className="text-3xl font-black text-foreground font-mono">{stats.geminiReady}</span>
+          <div className="h-1 bg-surface-hover rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: (stats.total > 0 ? (stats.geminiReady / stats.total) * 100 : 0) + '%' }} />
+          </div>
+          <span className="text-[11px] text-muted">dari {stats.total} ready</span>
+        </div>
+        <div className="card p-4 flex flex-col gap-1.5">
+          <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Berikutnya</span>
+          {stats.fastest ? (
+            <>
+              <span className="text-sm font-bold text-foreground truncate">{stats.fastest.email_account.split('@')[0]}</span>
+              <span className="text-[11px] font-mono text-violet-500 font-semibold">
+                {(() => { const sv = Math.floor(stats.fastest.nextAvailableMs / 1000); const hv = Math.floor(sv / 3600), mv = Math.floor((sv % 3600) / 60), sec = sv % 60; return hv > 0 ? hv + 'j ' + mv + 'm' : mv + 'm ' + sec + 'd'; })()}
               </span>
-              <span className="text-xs text-muted font-semibold">/ {stats.total} Ready</span>
-            </div>
-            <div className="w-full bg-surface-hover rounded-full h-1.5 mt-2 overflow-hidden">
-              <div
-                className="bg-orange-500 h-full rounded-full transition-all duration-500"
-                style={{ width: `${stats.total > 0 ? (stats.claudeReadyCount / stats.total) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Stat 3: Gemini Ready */}
-        <div className="glass-card p-4 sm:p-5 relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Gemini Pro</span>
-            <div className="w-7 h-7 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs">
-              GEM
-            </div>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">
-                {stats.geminiReadyCount}
-              </span>
-              <span className="text-xs text-muted font-semibold">/ {stats.total} Ready</span>
-            </div>
-            <div className="w-full bg-surface-hover rounded-full h-1.5 mt-2 overflow-hidden">
-              <div
-                className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                style={{ width: `${stats.total > 0 ? (stats.geminiReadyCount / stats.total) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Stat 4: Fastest Cooldown */}
-        <div className="glass-card p-4 sm:p-5 relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Next In Queue</span>
-            <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-xs">
-              ⚡
-            </div>
-          </div>
-          <div>
-            <div className="text-xs sm:text-sm font-bold text-foreground truncate">
-              {stats.fastestAccount ? stats.fastestAccount.email_account : 'Semua Siap'}
-            </div>
-            <p className="text-[10px] sm:text-[11px] text-emerald-500 font-mono mt-0.5 truncate font-semibold">
-              {stats.fastestText}
-            </p>
-          </div>
+              <span className="text-[10px] text-muted">menuju ready</span>
+            </>
+          ) : (
+            <>
+              <span className="text-2xl">🎉</span>
+              <span className="text-sm font-bold text-emerald-500">Semua Siap!</span>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── Filter & Search Toolbar ───────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <svg
-            className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
+      {/* ── Search & Filter ──────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
           </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari email / identitas akun..."
-            className="w-full h-10 pl-10 pr-4 rounded-xl bg-surface border border-border text-xs sm:text-sm text-foreground placeholder:text-muted/60 focus:border-primary outline-none transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground text-xs"
-            >
-              ✕
-            </button>
-          )}
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari akun..."
+            className="w-full h-10 pl-10 pr-4 rounded-xl bg-surface border border-border text-sm text-foreground placeholder:text-muted/60 focus:border-violet-500/50 outline-none transition-all" />
+          {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-muted hover:text-foreground rounded-full hover:bg-surface-hover">✕</button>}
         </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-              filterType === 'all'
-                ? 'bg-primary text-white shadow-sm shadow-primary/25'
-                : 'bg-surface hover:bg-surface-hover text-muted hover:text-foreground border border-border'
-            }`}
-          >
-            Semua ({stats.total})
-          </button>
-          <button
-            onClick={() => setFilterType('ready')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'ready'
-                ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
-                : 'bg-surface hover:bg-surface-hover text-muted hover:text-foreground border border-border'
-            }`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>Ada Yang Ready</span>
-          </button>
-          <button
-            onClick={() => setFilterType('cooldown')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'cooldown'
-                ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/25'
-                : 'bg-surface hover:bg-surface-hover text-muted hover:text-foreground border border-border'
-            }`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <span>Cooldown ({stats.cooldownCount})</span>
-          </button>
-          <button
-            onClick={() => setFilterType('claude_ready')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-              filterType === 'claude_ready'
-                ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/25'
-                : 'bg-surface hover:bg-surface-hover text-muted hover:text-foreground border border-border'
-            }`}
-          >
-            Claude Ready ({stats.claudeReadyCount})
-          </button>
-          <button
-            onClick={() => setFilterType('gemini_ready')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-              filterType === 'gemini_ready'
-                ? 'bg-blue-500 text-white shadow-sm shadow-blue-500/25'
-                : 'bg-surface hover:bg-surface-hover text-muted hover:text-foreground border border-border'
-            }`}
-          >
-            Gemini Ready ({stats.geminiReadyCount})
-          </button>
+        <div className="flex gap-1.5 shrink-0">
+          {(['all', 'ready', 'cooldown'] as const).map((f) => (
+            <button key={f} onClick={() => setFilterType(f)}
+              className={['px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer',
+                filterType === f
+                  ? f === 'all' ? 'bg-foreground text-background shadow-sm' : f === 'ready' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm'
+                  : 'bg-surface border border-border text-muted hover:text-foreground'
+              ].join(' ')}>
+              {f === 'all' ? 'Semua (' + stats.total + ')' : f === 'ready' ? '● Ready' : '⏱ Cooldown'}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── Main AI Accounts Grid ─────────────────────────────────── */}
+      {/* ── Cards ────────────────────────────────────────────── */}
       {loading ? (
-        <div className="py-24 flex flex-col justify-center items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-3 border-primary/20 border-t-primary animate-spin" />
-          <p className="text-xs text-muted font-mono animate-pulse">Menghubungkan ke Supabase AI Radar...</p>
+        <div className="py-20 flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-violet-500/20 border-t-violet-500 animate-spin" />
+          <p className="text-xs text-muted font-mono animate-pulse">Menghubungkan ke AI Radar...</p>
         </div>
       ) : filteredAgents.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredAgents.map((ag) => {
-            const isCopied = copiedEmail === ag.email_account;
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <AnimatePresence mode="popLayout">
+            {filteredAgents.map((ag, idx) => (
+              <motion.div key={ag.id} layout
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2, delay: idx * 0.04 }}
+                className="card rounded-3xl overflow-hidden">
 
-            return (
-              <motion.div
-                key={ag.id}
-                layout
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="glass-card p-5 sm:p-6 rounded-3xl flex flex-col justify-between group relative overflow-hidden transition-all duration-300"
-              >
-                {/* Card Top: Identity Header */}
-                <div>
-                  <div className="flex items-center justify-between gap-3 mb-4 pb-3.5 border-b border-border/60">
+                {/* Card Header */}
+                <div className={['px-5 pt-5 pb-4 border-b border-border/60', ag.isBothReady ? 'bg-emerald-500/5' : ''].join(' ')}>
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 text-white flex items-center justify-center font-bold text-xs shadow-md shrink-0 ring-2 ring-primary/20">
-                        AI
+                      {/* Avatar */}
+                      <div className={['w-11 h-11 rounded-2xl flex items-center justify-center font-black text-base text-white shrink-0 shadow-md',
+                        ag.isBothReady ? 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                          : ag.isAnyReady ? 'bg-gradient-to-br from-amber-500 to-orange-600'
+                          : 'bg-gradient-to-br from-violet-600 to-indigo-700'
+                      ].join(' ')}>
+                        {ag.email_account.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h3
-                            className="text-sm sm:text-base font-bold text-foreground truncate"
-                            style={{ fontFamily: 'var(--font-heading)' }}
-                            title={ag.email_account}
-                          >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h3 className="text-sm font-bold text-foreground truncate max-w-[150px] sm:max-w-[220px]" title={ag.email_account}>
                             {ag.email_account}
                           </h3>
-                          <button
-                            onClick={() => handleCopyEmail(ag.email_account)}
-                            className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-hover transition-colors shrink-0"
-                            title="Salin email akun"
-                          >
-                            {isCopied ? (
-                              <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            ) : (
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                            )}
+                          <button onClick={() => handleCopyEmail(ag.email_account)}
+                            className="p-1 rounded-lg text-muted hover:text-violet-500 hover:bg-violet-500/10 transition-all shrink-0" title="Salin email">
+                            {copiedEmail === ag.email_account
+                              ? <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                              : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            }
                           </button>
                         </div>
-                        <p className="text-[11px] text-muted font-mono flex items-center gap-1.5">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              ag.isBothReady
-                                ? 'bg-emerald-500'
-                                : ag.isAnyReady
-                                ? 'bg-amber-500'
-                                : 'bg-rose-500'
-                            }`}
-                          />
-                          <span>
-                            {ag.isBothReady
-                              ? 'Kedua Model Ready'
-                              : ag.isAnyReady
-                              ? '1 Model Ready'
-                              : 'Semua Model Cooldown'}
-                          </span>
-                        </p>
+                        <div className="mt-1">
+                          <StatusPill isReady={ag.isBothReady} text={ag.isBothReady ? 'SEMUA READY' : ag.isAnyReady ? '1 READY' : 'COOLDOWN'} />
+                        </div>
                       </div>
                     </div>
-
-                    {/* Edit & Delete Action Buttons */}
+                    {/* Edit/Delete */}
                     <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => openEditModal(ag)}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-surface-hover text-muted hover:text-primary transition-colors cursor-pointer border border-transparent hover:border-border"
-                        title="Edit Waktu Limit"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-                        </svg>
+                      <button onClick={() => openEditModal(ag)} title="Edit"
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-violet-500 hover:bg-violet-500/10 transition-all cursor-pointer">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
                       </button>
-                      <button
-                        onClick={() => setDeleteId(ag.id)}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-danger/10 text-muted hover:text-danger transition-colors cursor-pointer border border-transparent hover:border-danger/20"
-                        title="Hapus Akun"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
+                      <button onClick={() => setDeleteId(ag.id)} title="Hapus"
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-red-500 hover:bg-red-500/10 transition-all cursor-pointer">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Model 1: Anthropic Claude 3.5 & ChatGPT */}
-                  <div className="space-y-3">
-                    <div className="p-3.5 rounded-2xl bg-surface/70 border border-border/80 hover:border-orange-500/30 transition-colors">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50" />
-                          <span className="text-xs font-bold text-foreground">Claude 3.5 / ChatGPT</span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                            ag.claude.isReady
-                              ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/25'
-                              : 'bg-orange-500/15 text-orange-500 border-orange-500/25'
-                          }`}
-                        >
-                          {ag.claude.statusBadge}
-                        </span>
-                      </div>
-
-                      {/* Timer & Date Display */}
-                      <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                        <div>
-                          <div className="font-mono font-extrabold text-foreground text-sm tracking-tight">
-                            {ag.claude.countdownText}
-                          </div>
-                          <p className="text-[10px] text-muted font-medium mt-0.5">
-                            {ag.claude.targetDateTimeText}
-                          </p>
-                        </div>
-
-                        {/* Quick Action Presets */}
-                        <div className="flex items-center gap-1.5 shrink-0 pt-1 sm:pt-0">
-                          <button
-                            onClick={() => handleQuickReset(ag.id, 'claude_gpt', 3)}
-                            className="px-2 py-1 rounded-lg bg-surface-hover hover:bg-border text-[10px] font-bold text-muted hover:text-foreground cursor-pointer transition-colors"
-                            title="Set limit 3 jam (Siklus GPT-4o)"
-                          >
-                            +3j
-                          </button>
-                          <button
-                            onClick={() => handleQuickReset(ag.id, 'claude_gpt', 5)}
-                            className="px-2 py-1 rounded-lg bg-surface-hover hover:bg-border text-[10px] font-bold text-muted hover:text-foreground cursor-pointer transition-colors"
-                            title="Set limit 5 jam (Siklus Claude 3.5)"
-                          >
-                            +5j
-                          </button>
-                          <button
-                            onClick={() => handleQuickReset(ag.id, 'claude_gpt', 0)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-[10px] font-bold text-emerald-500 cursor-pointer transition-colors border border-emerald-500/20"
-                            title="Reset langsung ke Siap Pakai"
-                          >
-                            Ready
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Model 2: Google Gemini 1.5 Pro */}
-                    <div className="p-3.5 rounded-2xl bg-surface/70 border border-border/80 hover:border-blue-500/30 transition-colors">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" />
-                          <span className="text-xs font-bold text-foreground">Google Gemini 1.5 Pro</span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                            ag.gemini.isReady
-                              ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/25'
-                              : 'bg-blue-500/15 text-blue-500 border-blue-500/25'
-                          }`}
-                        >
-                          {ag.gemini.statusBadge}
-                        </span>
-                      </div>
-
-                      {/* Timer & Date Display */}
-                      <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                        <div>
-                          <div className="font-mono font-extrabold text-foreground text-sm tracking-tight">
-                            {ag.gemini.countdownText}
-                          </div>
-                          <p className="text-[10px] text-muted font-medium mt-0.5">
-                            {ag.gemini.targetDateTimeText}
-                          </p>
-                        </div>
-
-                        {/* Quick Action Presets */}
-                        <div className="flex items-center gap-1.5 shrink-0 pt-1 sm:pt-0">
-                          <button
-                            onClick={() => handleQuickReset(ag.id, 'gemini', 5)}
-                            className="px-2 py-1 rounded-lg bg-surface-hover hover:bg-border text-[10px] font-bold text-muted hover:text-foreground cursor-pointer transition-colors"
-                            title="Set limit 5 jam"
-                          >
-                            +5j
-                          </button>
-                          <button
-                            onClick={() => handleQuickReset(ag.id, 'gemini', 24)}
-                            className="px-2 py-1 rounded-lg bg-surface-hover hover:bg-border text-[10px] font-bold text-muted hover:text-foreground cursor-pointer transition-colors"
-                            title="Set limit 24 jam (Kuota Harian Gemini)"
-                          >
-                            +24j
-                          </button>
-                          <button
-                            onClick={() => handleQuickReset(ag.id, 'gemini', 0)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-[10px] font-bold text-emerald-500 cursor-pointer transition-colors border border-emerald-500/20"
-                            title="Reset langsung ke Siap Pakai"
-                          >
-                            Ready
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Card Bottom: Quick Custom Edit Trigger */}
-                <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-[11px] text-muted">
-                  <span className="font-mono text-[10px]">
-                    ID: {ag.id.slice(0, 8)}...
-                  </span>
-                  <button
-                    onClick={() => openEditModal(ag)}
-                    className="font-bold text-primary hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <span>Atur Tanggal Spesifik</span>
-                    <span>→</span>
-                  </button>
+                {/* Model Rows */}
+                <div className="p-4 sm:p-5 space-y-3">
+                  <ModelRow label="Claude 3.5 / ChatGPT" dotColor="bg-orange-500" barColor="bg-orange-500" cooldown={ag.claude} agentId={ag.id} model="claude_gpt" onQuickReset={handleQuickReset} presets={[3, 5, 8]} />
+                  <ModelRow label="Google Gemini 1.5 Pro" dotColor="bg-blue-500" barColor="bg-blue-500" cooldown={ag.gemini} agentId={ag.id} model="gemini" onQuickReset={handleQuickReset} presets={[5, 24, 48]} />
                 </div>
               </motion.div>
-            );
-          })}
+            ))}
+          </AnimatePresence>
         </div>
       ) : (
-        /* Empty State */
-        <div className="glass-card py-16 text-center text-muted p-6 flex flex-col items-center justify-center rounded-3xl">
-          <div className="w-14 h-14 rounded-2xl bg-surface-hover flex items-center justify-center text-2xl mb-3 shadow-inner">
-            🤖
-          </div>
-          <h4 className="text-base font-bold text-foreground mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
-            {searchQuery ? 'Tidak ada akun yang sesuai pencarian' : 'Belum ada akun AI yang dilacak'}
+        <div className="card py-16 px-6 flex flex-col items-center text-center rounded-3xl">
+          <div className="w-16 h-16 rounded-3xl bg-violet-500/10 flex items-center justify-center text-3xl mb-4">🤖</div>
+          <h4 className="text-lg font-bold text-foreground mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+            {searchQuery ? 'Tidak ditemukan' : 'Belum ada akun AI'}
           </h4>
-          <p className="text-xs max-w-sm mb-5 text-muted leading-relaxed">
-            {searchQuery
-              ? `Tidak ditemukan akun dengan kata kunci "${searchQuery}". Coba ubah filter atau kata kunci.`
-              : 'Tambahkan akun Claude, GPT, atau Gemini Anda untuk memantau waktu reset limit cooldown coding Anda.'}
+          <p className="text-sm text-muted max-w-sm mb-6 leading-relaxed">
+            {searchQuery ? 'Tidak ada akun dengan kata kunci "' + searchQuery + '".' : 'Tambahkan akun Claude, GPT, atau Gemini untuk mulai memantau cooldown.'}
           </p>
-          {searchQuery ? (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setFilterType('all');
-              }}
-              className="px-4 py-2 rounded-xl bg-surface border border-border text-xs font-bold text-foreground hover:bg-surface-hover transition-colors"
-            >
-              Hapus Filter Pencarian
-            </button>
-          ) : (
-            <button
-              onClick={openAddModal}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs text-white shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-              style={{ background: 'var(--gradient-primary)' }}
-            >
-              Tambah Akun Pertama
-            </button>
-          )}
+          {searchQuery
+            ? <button onClick={() => { setSearchQuery(''); setFilterType('all'); }} className="px-4 py-2 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground hover:bg-surface-hover transition-colors">Hapus Pencarian</button>
+            : <button onClick={openAddModal} className="px-6 py-2.5 rounded-xl font-bold text-sm text-white cursor-pointer shadow-md" style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)' }}>Tambah Akun Pertama</button>
+          }
         </div>
       )}
 
-      {/* ── Comprehensive Add / Edit Modal ───────────────────────── */}
+      {/* ── Add / Edit Modal ─────────────────────────────────── */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="fixed inset-0 bg-background/80 backdrop-blur-md"
-            />
+              initial={{ opacity: 0, y: 48 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 48 }} transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+              className="relative w-full sm:max-w-md bg-card rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 border border-border shadow-2xl z-10 max-h-[92vh] overflow-y-auto">
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative w-full max-w-lg bg-card rounded-3xl p-5 sm:p-7 border border-border shadow-2xl z-10 my-8 max-h-[90vh] overflow-y-auto"
-            >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between mb-5 pb-3 border-b border-border/60">
+              <div className="flex items-center justify-between mb-5">
                 <div>
                   <h3 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-                    {editingAgent ? 'Edit Status & Limit Akun AI' : 'Tambah Akun AI Baru'}
+                    {editingAgent ? '✏️ Edit Akun AI' : '➕ Tambah Akun AI'}
                   </h3>
-                  <p className="text-xs text-muted mt-0.5">
-                    Atur tanggal/waktu cooldown atau gunakan preset cepat.
-                  </p>
+                  <p className="text-xs text-muted mt-0.5">Atur waktu cooldown per model</p>
                 </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-hover transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                <button onClick={() => setIsModalOpen(false)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-hover transition-colors cursor-pointer">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Email / Identitas */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Email */}
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1.5">
-                    Identitas / Email Akun AI <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="Contoh: dev-work@company.com atau Claude Pro #1"
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground placeholder:text-muted/60 focus:border-primary outline-none transition-all"
-                    autoFocus
-                  />
+                  <label className="block text-xs font-semibold text-muted mb-1.5">Email / Nama Akun <span className="text-red-500">*</span></label>
+                  <input type="text" required value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="contoh: claude-work@gmail.com" autoFocus
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground placeholder:text-muted/50 focus:border-violet-500/60 outline-none transition-all" />
                 </div>
 
-                {/* Section 1: Claude 3.5 & ChatGPT Configuration */}
-                <div className="p-4 rounded-2xl bg-surface/80 border border-border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-orange-500" />
-                      Cooldown Claude 3.5 / ChatGPT
-                    </span>
-                    <span className="text-[10px] font-mono text-muted">Anthropic Limit</span>
+                {/* Claude Section */}
+                <div className="rounded-2xl border border-border bg-surface/60 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="text-sm font-bold text-foreground">Claude 3.5 / ChatGPT</span>
+                    <span className="text-[10px] font-mono text-muted ml-auto">Anthropic</span>
                   </div>
-
-                  {/* Mode Selector Tabs */}
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-surface-hover/80 rounded-xl text-[11px] font-semibold text-center">
-                    <button
-                      type="button"
-                      onClick={() => setClaudeMode('ready')}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        claudeMode === 'ready'
-                          ? 'bg-emerald-500 text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Ready
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClaudeMode('preset');
-                        setClaudeHours(5);
-                      }}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        claudeMode === 'preset'
-                          ? 'bg-primary text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Preset
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClaudeMode('custom_duration')}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        claudeMode === 'custom_duration'
-                          ? 'bg-primary text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Durasi
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClaudeMode('datetime');
-                        if (!claudeDatetime) {
-                          setClaudeDatetime(toLocalDatetimeInput(new Date(Date.now() + 5 * 3600000).toISOString()));
-                        }
-                      }}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        claudeMode === 'datetime'
-                          ? 'bg-primary text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Tanggal
-                    </button>
-                  </div>
-
-                  {/* Mode Content */}
-                  {claudeMode === 'ready' && (
-                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold text-center">
-                      ✓ Status akan diatur ke Siap Pakai (Tanpa Cooldown)
-                    </div>
-                  )}
-
+                  <ModeSelector value={claudeMode} onChange={(v) => { setClaudeMode(v); if (v === 'datetime' && !claudeDatetime) setClaudeDatetime(toLocal(new Date(Date.now() + 5 * 3600000).toISOString())); }} accentClass="bg-violet-600" />
+                  {claudeMode === 'ready' && <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold text-center">✓ Akan diatur ke Siap Pakai</div>}
                   {claudeMode === 'preset' && (
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    <div className="flex flex-wrap gap-2">
                       {[1, 3, 5, 8, 24].map((h) => (
-                        <button
-                          key={h}
-                          type="button"
-                          onClick={() => setClaudeHours(h)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            claudeHours === h
-                              ? 'bg-orange-500 text-white shadow-sm'
-                              : 'bg-surface border border-border text-muted hover:text-foreground'
-                          }`}
-                        >
-                          +{h} Jam {h === 5 ? '(Claude)' : h === 3 ? '(GPT)' : ''}
+                        <button key={h} type="button" onClick={() => setClaudeHours(h)}
+                          className={['px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all', claudeHours === h ? 'bg-orange-500 text-white' : 'bg-surface border border-border text-muted hover:text-foreground'].join(' ')}>
+                          +{h}j {h === 5 ? '(Claude)' : h === 3 ? '(GPT)' : ''}
                         </button>
                       ))}
                     </div>
                   )}
-
-                  {claudeMode === 'custom_duration' && (
-                    <div className="grid grid-cols-3 gap-2 pt-1">
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">Hari</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={claudeDays}
-                          onChange={(e) => setClaudeDays(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">Jam</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={23}
-                          value={claudeHours}
-                          onChange={(e) => setClaudeHours(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">Menit</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={59}
-                          value={claudeMinutes}
-                          onChange={(e) => setClaudeMinutes(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {claudeMode === 'datetime' && (
-                    <div className="pt-1">
-                      <label className="text-[10px] text-muted block mb-1">
-                        Pilih Tanggal & Waktu Reset Spesifik
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={claudeDatetime}
-                        onChange={(e) => setClaudeDatetime(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono outline-none focus:border-primary"
-                      />
-                    </div>
-                  )}
+                  {claudeMode === 'custom_duration' && <DurationInputs days={claudeDays} hours={claudeHours} minutes={claudeMinutes} setDays={setClaudeDays} setHours={setClaudeHours} setMinutes={setClaudeMinutes} />}
+                  {claudeMode === 'datetime' && <input type="datetime-local" value={claudeDatetime} onChange={(e) => setClaudeDatetime(e.target.value)} className="w-full h-10 px-3 rounded-xl bg-surface border border-border text-xs text-foreground font-mono outline-none focus:border-violet-500/60" />}
                 </div>
 
-                {/* Section 2: Google Gemini Configuration */}
-                <div className="p-4 rounded-2xl bg-surface/80 border border-border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      Cooldown Google Gemini Pro
-                    </span>
-                    <span className="text-[10px] font-mono text-muted">Google AI Studio</span>
+                {/* Gemini Section */}
+                <div className="rounded-2xl border border-border bg-surface/60 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    <span className="text-sm font-bold text-foreground">Google Gemini 1.5 Pro</span>
+                    <span className="text-[10px] font-mono text-muted ml-auto">Google AI</span>
                   </div>
-
-                  {/* Mode Selector Tabs */}
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-surface-hover/80 rounded-xl text-[11px] font-semibold text-center">
-                    <button
-                      type="button"
-                      onClick={() => setGeminiMode('ready')}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        geminiMode === 'ready'
-                          ? 'bg-emerald-500 text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Ready
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGeminiMode('preset');
-                        setGeminiHours(24);
-                      }}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        geminiMode === 'preset'
-                          ? 'bg-primary text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Preset
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGeminiMode('custom_duration')}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        geminiMode === 'custom_duration'
-                          ? 'bg-primary text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Durasi
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGeminiMode('datetime');
-                        if (!geminiDatetime) {
-                          setGeminiDatetime(toLocalDatetimeInput(new Date(Date.now() + 24 * 3600000).toISOString()));
-                        }
-                      }}
-                      className={`py-1.5 rounded-lg transition-all ${
-                        geminiMode === 'datetime'
-                          ? 'bg-primary text-white font-bold shadow-sm'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                    >
-                      Tanggal
-                    </button>
-                  </div>
-
-                  {/* Mode Content */}
-                  {geminiMode === 'ready' && (
-                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold text-center">
-                      ✓ Status akan diatur ke Siap Pakai (Tanpa Cooldown)
-                    </div>
-                  )}
-
+                  <ModeSelector value={geminiMode} onChange={(v) => { setGeminiMode(v); if (v === 'datetime' && !geminiDatetime) setGeminiDatetime(toLocal(new Date(Date.now() + 24 * 3600000).toISOString())); }} accentClass="bg-blue-600" />
+                  {geminiMode === 'ready' && <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold text-center">✓ Akan diatur ke Siap Pakai</div>}
                   {geminiMode === 'preset' && (
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    <div className="flex flex-wrap gap-2">
                       {[1, 5, 24, 48, 72].map((h) => (
-                        <button
-                          key={h}
-                          type="button"
-                          onClick={() => setGeminiHours(h)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            geminiHours === h
-                              ? 'bg-blue-500 text-white shadow-sm'
-                              : 'bg-surface border border-border text-muted hover:text-foreground'
-                          }`}
-                        >
-                          +{h} Jam {h === 24 ? '(Daily Quota)' : ''}
+                        <button key={h} type="button" onClick={() => setGeminiHours(h)}
+                          className={['px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all', geminiHours === h ? 'bg-blue-500 text-white' : 'bg-surface border border-border text-muted hover:text-foreground'].join(' ')}>
+                          +{h}j {h === 24 ? '(Daily)' : ''}
                         </button>
                       ))}
                     </div>
                   )}
-
-                  {geminiMode === 'custom_duration' && (
-                    <div className="grid grid-cols-3 gap-2 pt-1">
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">Hari</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={geminiDays}
-                          onChange={(e) => setGeminiDays(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">Jam</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={23}
-                          value={geminiHours}
-                          onChange={(e) => setGeminiHours(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">Menit</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={59}
-                          value={geminiMinutes}
-                          onChange={(e) => setGeminiMinutes(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full h-9 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {geminiMode === 'datetime' && (
-                    <div className="pt-1">
-                      <label className="text-[10px] text-muted block mb-1">
-                        Pilih Tanggal & Waktu Reset Spesifik
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={geminiDatetime}
-                        onChange={(e) => setGeminiDatetime(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-xs text-foreground font-mono outline-none focus:border-primary"
-                      />
-                    </div>
-                  )}
+                  {geminiMode === 'custom_duration' && <DurationInputs days={geminiDays} hours={geminiHours} minutes={geminiMinutes} setDays={setGeminiDays} setHours={setGeminiHours} setMinutes={setGeminiMinutes} />}
+                  {geminiMode === 'datetime' && <input type="datetime-local" value={geminiDatetime} onChange={(e) => setGeminiDatetime(e.target.value)} className="w-full h-10 px-3 rounded-xl bg-surface border border-border text-xs text-foreground font-mono outline-none focus:border-violet-500/60" />}
                 </div>
 
-                {/* Modal Footer Buttons */}
-                <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-border/60">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-muted hover:text-foreground cursor-pointer transition-colors"
-                  >
+                {/* Footer Buttons */}
+                <div className="flex items-center gap-3 pt-1">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-muted border border-border hover:bg-surface-hover cursor-pointer transition-all">
                     Batal
                   </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl font-bold text-xs text-white shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-                    style={{ background: 'var(--gradient-primary)' }}
-                  >
-                    {editingAgent ? 'Simpan Perubahan' : 'Tambah Akun'}
+                  <button type="submit" className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white cursor-pointer shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)' }}>
+                    {editingAgent ? 'Simpan' : 'Tambah'}
                   </button>
                 </div>
               </form>
@@ -1297,14 +550,8 @@ export default function AITrackerPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Confirm Delete Modal ─────────────────────────────────── */}
-      <ConfirmModal
-        isOpen={!!deleteId}
-        title="Hapus Akun AI Tracker?"
-        message="Akun AI dan data limit cooldown-nya akan dihapus permanen dari Supabase."
-        onConfirm={executeDelete}
-        onCancel={() => setDeleteId(null)}
-      />
+      <ConfirmModal isOpen={!!deleteId} title="Hapus Akun AI?" message="Data akun dan cooldown-nya akan dihapus permanen." onConfirm={executeDelete} onCancel={() => setDeleteId(null)} />
     </div>
   );
 }
+
