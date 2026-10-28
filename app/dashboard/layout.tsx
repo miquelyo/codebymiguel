@@ -13,6 +13,14 @@ function CodeIcon({ className }: { className?: string }) {
 function GridIcon({ className }: { className?: string }) {
   return (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>);
 }
+function ProjectsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect width="18" height="18" x="3" y="3" rx="3" />
+      <path d="M8 7v10M13 7v6M18 7v9" />
+    </svg>
+  );
+}
 function CalendarIcon({ className }: { className?: string }) {
   return (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>);
 }
@@ -37,6 +45,7 @@ interface NavItem { label: string; href: string; icon: React.ComponentType<{ cla
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',             href: '/dashboard',            icon: GridIcon },
+  { label: 'Projects',              href: '/dashboard/projects',   icon: ProjectsIcon },
   { label: 'Agenda & Events',       href: '/dashboard/agenda',     icon: CalendarIcon },
   { label: 'Attendance',            href: '/dashboard/attendance', icon: AttendanceIcon },
   { label: 'Limit Agent Tracker',   href: '/dashboard/ai-tracker', icon: SparklesIcon },
@@ -175,7 +184,7 @@ function MobileTopBar({
       : <span className="text-[11px] font-bold text-white">{user.avatar || user.name?.charAt(0)?.toUpperCase() || 'U'}</span>;
 
   return (
-    <header className="lg:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-200/80 px-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-3 flex items-center justify-between shadow-xs">
+    <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-zinc-200/90 px-4 pt-[max(1.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-3.5 flex items-center justify-between shadow-xs">
       <Link href="/dashboard" className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-xl bg-zinc-900 text-white flex items-center justify-center shadow-xs">
           <CodeIcon className="w-4 h-4" />
@@ -205,34 +214,36 @@ function MobileTopBar({
 
 /* ──────────────────────────── Mobile Bottom Nav ────────────── */
 function MobileBottomNav({ pathname }: { pathname: string }) {
-  const items = NAV_ITEMS.slice(0, 5);
+  const items = NAV_ITEMS;
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pointer-events-none">
-      <nav className="pointer-events-auto floating-bottom-nav rounded-[22px] flex items-center justify-around px-2 py-2">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-2.5 sm:px-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pointer-events-none">
+      <nav className="pointer-events-auto floating-bottom-nav rounded-[22px] flex items-center justify-between px-1.5 py-1.5 sm:px-2 sm:py-2 gap-0.5">
         {items.map((item) => {
           const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${
+              className={`flex-1 flex flex-col items-center gap-0.5 py-1 px-0.5 rounded-xl transition-all ${
                 isActive ? 'text-zinc-900 font-bold' : 'text-zinc-400 hover:text-zinc-700 font-medium'
               }`}
             >
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center transition-all ${
                   isActive ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-400'
                 }`}
               >
                 <item.icon className="w-4 h-4" />
               </div>
-              <span className="text-[9px] tracking-tight truncate max-w-[56px] text-center">
+              <span className="text-[8.5px] sm:text-[9px] tracking-tight truncate max-w-[48px] sm:max-w-[56px] text-center">
                 {item.label === 'Limit Agent Tracker'
-                  ? 'Tracker'
+                  ? 'AI Limit'
                   : item.label === 'Aktivitas & Kebiasaan'
                   ? 'Aktivitas'
                   : item.label === 'Agenda & Events'
                   ? 'Agenda'
+                  : item.label === 'Attendance'
+                  ? 'Presensi'
                   : item.label}
               </span>
             </Link>
