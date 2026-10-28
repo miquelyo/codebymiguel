@@ -144,10 +144,12 @@ const GITHUB_DOTS = [
   [2, 3, 2, 2, 3, 2],
 ];
 
+const emptySubscribe = () => () => {};
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const mounted = useSyncExternalStore(
-    () => () => {},
+    emptySubscribe,
     () => true,
     () => false
   );
@@ -171,10 +173,15 @@ export default function DashboardPage() {
     status: ProjectItem['status'];
   }>({ name: '', department: 'Engineering', progress: 50, deadline: 'Jul 15, 2026', status: 'In Progress' });
 
+  // Real-time clock ticker
   useEffect(() => {
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(clockTimer);
+  }, []);
 
-    if (!user?.email) return () => clearInterval(clockTimer);
+  // Supabase data fetch
+  useEffect(() => {
+    if (!user?.email) return;
 
     // Load Supabase Data
     const fetchDashboardData = async () => {
@@ -234,8 +241,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-    return () => clearInterval(clockTimer);
-  }, [user]);
+  }, [user?.email]);
 
   if (!mounted) return null;
 

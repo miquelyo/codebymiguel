@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from 'react';
@@ -200,7 +201,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     events.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }));
-    resetIdleTimer();
 
     // 2. Mobile Visibility & App Foreground/Background switch
     const handleVisibilityChange = () => {
@@ -262,7 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(intervalId);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [user, resetIdleTimer, logoutIdle]);
+  }, [user]);
 
   const checkCredentials = async (
     usernameOrEmail: string,
@@ -461,8 +461,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const authValue = useMemo(
+    () => ({
+      user,
+      isLoading,
+      login,
+      register,
+      validateCredentials,
+      logout,
+      updateUser,
+    }),
+    [user, isLoading, login, register, validateCredentials, logout, updateUser]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, validateCredentials, logout, updateUser }}>
+    <AuthContext.Provider value={authValue}>
       {children}
     </AuthContext.Provider>
   );

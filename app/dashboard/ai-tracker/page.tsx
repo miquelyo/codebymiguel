@@ -1,22 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/app/components/ConfirmModal';
-
-function subscribeLiveTimer(callback: () => void) {
-  const t = setInterval(callback, 1000);
-  return () => clearInterval(t);
-}
-function getLiveNowSnapshot() {
-  return Date.now();
-}
-function getServerSnapshot() {
-  return 0;
-}
 
 /* ─── Clean SVG Action Icons ─────────────────────────────────── */
 function PlusIcon({ className = 'w-4 h-4' }: { className?: string }) {
@@ -85,7 +74,7 @@ interface CooldownInfo {
 
 /* ─── Helper: Parse Cooldown ─────────────────────────────── */
 function parseCooldown(targetStr: string | null, nowMs: number): CooldownInfo {
-  if (!targetStr) {
+  if (!targetStr || !nowMs) {
     return { isReady: true, countdownText: 'Ready', diffMs: 0 };
   }
   const targetMs = new Date(targetStr).getTime();
@@ -119,7 +108,15 @@ export default function AITrackerPage() {
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'ready' | 'cooldown'>('all');
-  const nowMs = useSyncExternalStore(subscribeLiveTimer, getLiveNowSnapshot, getServerSnapshot);
+  const [nowMs, setNowMs] = useState<number>(0);
+
+  useEffect(() => {
+    setNowMs(Date.now());
+    const ticker = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, []);
 
   // Form states: Durasi sederhana (jam & menit)
   const [formEmail, setFormEmail] = useState('');
@@ -147,7 +144,7 @@ export default function AITrackerPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.email]);
 
   useEffect(() => {
     let active = true;
@@ -179,7 +176,7 @@ export default function AITrackerPage() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user?.email]);
 
   const parsedAgents = useMemo(
     () =>

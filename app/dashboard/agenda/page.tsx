@@ -340,7 +340,7 @@ export default function AgendaPage() {
 
     setEvents(data || []);
     setLoading(false);
-  }, [user]);
+  }, [user?.email]);
 
   useEffect(() => {
     loadEvents();

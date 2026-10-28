@@ -70,14 +70,14 @@ export default function SettingsPage() {
 
   /* Load user data */
   useEffect(() => {
-    if (user) {
+    if (user?.email) {
       setForm({
         display_name: user.name || '',
         role: user.role || '',
         avatar_url: user.avatar && user.avatar.length > 2 ? user.avatar : '',
       });
     }
-  }, [user]);
+  }, [user?.email, user?.name, user?.role, user?.avatar]);
 
   /* Save profile */
   const handleSave = async (e: React.FormEvent) => {

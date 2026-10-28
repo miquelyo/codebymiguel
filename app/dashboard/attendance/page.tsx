@@ -344,7 +344,7 @@ export default function AttendancePage() {
     const fullHistory = buildFullAttendanceHistory(allKnown, userEmail);
     setHistory(fullHistory);
     setIsLoadingToday(false);
-  }, [user, locationInfo?.timezone]);
+  }, [user?.email]);
 
   useEffect(() => {
     fetchData();
