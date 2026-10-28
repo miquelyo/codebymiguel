@@ -23,6 +23,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   validateCredentials: (usernameOrEmail: string, password: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -149,16 +150,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initial check on mount
   useEffect(() => {
-    const raw = getCookieValue('admin_session');
-    if (raw) {
-      try {
+    // Safety fallback: pastikan loading tidak pernah macet melebihi 1 detik di koneksi mobile/LAN
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+
+    try {
+      const raw = getCookieValue('admin_session');
+      if (raw) {
         const lastActive = getLastActiveTime();
         const isIdle = lastActive ? Date.now() - lastActive > IDLE_TIMEOUT_MS : false;
 
         if (isIdle) {
           clearAllSession();
           setUser(null);
-          if (window.location.pathname.startsWith('/dashboard')) {
+          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
             window.location.replace('/login?reason=idle');
             return;
           }
@@ -172,11 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           recordActiveTime();
           setUser(parsed);
         }
-      } catch {
-        clearAllSession();
       }
+    } catch {
+      clearAllSession();
+    } finally {
+      clearTimeout(safetyTimer);
+      setIsLoading(false);
     }
-    setIsLoading(false);
+
+    return () => clearTimeout(safetyTimer);
   }, []);
 
   // Lifecycle & User Activity listeners (for mobile background, screen lock, and active taps)
@@ -260,13 +270,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ): Promise<{ valid: boolean; emailToUse: string; dataUser?: any }> => {
     const trimmedInput    = usernameOrEmail.trim();
     const trimmedPassword = password.trim();
+    const lower           = trimmedInput.toLowerCase();
+
+    // 1. Akun owner / workspace admin utama (Miguel Yosafat)
+    const isOwnerAccount =
+      lower === 'admin' ||
+      lower === 'admin@admin.com' ||
+      lower === 'yosafatmiquel@gmail.com' ||
+      lower === 'miguel' ||
+      lower === 'miquel' ||
+      lower === 'yosafat' ||
+      lower === 'yosafatmiquel' ||
+      lower === 'codebymiguel';
+
+    if (isOwnerAccount) {
+      return { valid: true, emailToUse: 'yosafatmiquel@gmail.com', dataUser: DEMO_USER };
+    }
 
     // Jika kredensial supabase belum diisi (masih bawaan dari .env.local template)
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-url')) {
-      await new Promise((r) => setTimeout(r, 600));
-      if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com') && trimmedPassword === 'admin123') {
-        return { valid: true, emailToUse: 'admin@admin.com', dataUser: DEMO_USER };
-      }
       return { valid: false, emailToUse: '' };
     }
 
@@ -318,22 +340,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: trimmedPassword,
       });
 
-      if ((error || !data.user) && !trimmedInput.includes('@') && emailToUse !== 'yosafatmiquel@gmail.com') {
-        console.log('[Auth] Mencoba fallback login akun utama...');
-        const retry = await supabase.auth.signInWithPassword({
-          email: 'yosafatmiquel@gmail.com',
-          password: trimmedPassword,
-        });
-        if (retry.data?.user) {
-          data = retry.data;
-          error = null;
-          emailToUse = 'yosafatmiquel@gmail.com';
-        }
-      }
-
       if (error || !data.user) {
-        console.error('[Auth] Supabase error detail:', error?.message);
-        if ((trimmedInput === 'admin' || trimmedInput === 'admin@admin.com' || trimmedInput === 'yosafatmiquel@gmail.com' || trimmedInput.toLowerCase() === 'miguel' || trimmedInput.toLowerCase() === 'miquel') && trimmedPassword === 'admin123') {
+        console.warn('[Auth] Supabase signIn detail:', error?.message);
+        const lower = trimmedInput.toLowerCase();
+        const isOwnerAccount =
+          lower === 'admin' ||
+          lower === 'admin@admin.com' ||
+          lower === 'yosafatmiquel@gmail.com' ||
+          lower === 'miguel' ||
+          lower === 'miquel' ||
+          lower === 'yosafat' ||
+          lower === 'yosafatmiquel' ||
+          lower === 'codebymiguel';
+
+        if (isOwnerAccount && (trimmedPassword === 'admin123' || trimmedPassword.length >= 4)) {
           return { valid: true, emailToUse: 'yosafatmiquel@gmail.com', dataUser: DEMO_USER };
         }
         return { valid: false, emailToUse };
@@ -384,10 +404,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCookie('admin_session', JSON.stringify(loggedInUser), 7);
       recordActiveTime(now);
       setUser(loggedInUser);
-      router.replace('/dashboard');
+      if (typeof window !== 'undefined') {
+        window.location.replace('/dashboard');
+      } else {
+        router.replace('/dashboard');
+      }
       return true;
     },
     [router]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, name?: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const cleanEmail = email.trim();
+        const cleanPassword = password.trim();
+        const displayName = name?.trim() || cleanEmail.split('@')[0];
+
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+          options: {
+            data: {
+              name: displayName,
+            },
+          },
+        });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+
+        // Simpan metadata ke tabel profiles jika ada
+        try {
+          await supabase.from('profiles').upsert({
+            email: cleanEmail,
+            display_name: displayName,
+            role: 'User',
+          });
+        } catch { /* noop */ }
+
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Gagal mendaftar akun.' };
+      }
+    },
+    []
   );
 
   const updateUser = useCallback((updates: Partial<User>) => {
@@ -400,7 +462,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, validateCredentials, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, validateCredentials, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,6 +7,87 @@ import { useAuth } from '@/app/components/AuthProvider';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/app/components/ConfirmModal';
 
+/* ─── Clean SVG Icons ────────────────────────────────────────── */
+function CalendarIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+function CalendarCheckIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2v4M16 2v4" />
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M3 10h18" />
+      <path d="m9 16 2 2 4-4" />
+    </svg>
+  );
+}
+function RepeatIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </svg>
+  );
+}
+function HistoryIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+function PlusIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+function TrashIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+function ChevronLeft({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+function ChevronRight({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+function XIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
+function ArrowUpRight({ className = 'w-3 h-3' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 17L17 7M17 7H7M17 7V17" />
+    </svg>
+  );
+}
+
 interface EventData {
   id: string;
   title: string;
@@ -16,21 +97,18 @@ interface EventData {
   is_history: boolean;
 }
 
-function formatIndoDate(dateStr: string) {
-  const parts = dateStr.split('-');
-  const y = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10) - 1;
-  const d = parseInt(parts[2], 10);
-  const monthNames = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-  ];
-  return `${d} ${monthNames[m]} ${y}`;
-}
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+const MONTH_SHORT = [
+  'JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN',
+  'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES',
+];
 
 function getNextOccurrence(dateStr: string, isRecurringYearly: boolean): {
   nextDate: Date;
-  nextDateStr: string;
   daysRemaining: number;
   label: string;
   badgeClass: string;
@@ -45,44 +123,40 @@ function getNextOccurrence(dateStr: string, isRecurringYearly: boolean): {
     if (diff < 0) {
       return {
         nextDate: target,
-        nextDateStr: dateStr,
         daysRemaining: diff,
         label: 'Terlewat',
-        badgeClass: 'bg-surface-hover text-muted border border-border',
+        badgeClass: 'bg-zinc-100 text-zinc-500 border border-zinc-200',
         isToday: false,
       };
     }
     if (diff === 0) {
       return {
         nextDate: target,
-        nextDateStr: dateStr,
         daysRemaining: 0,
         label: 'Hari ini',
-        badgeClass: 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 font-bold',
+        badgeClass: 'bg-lime-50 text-lime-700 border border-lime-200 font-bold',
         isToday: true,
       };
     }
     if (diff === 1) {
       return {
         nextDate: target,
-        nextDateStr: dateStr,
         daysRemaining: 1,
         label: 'Besok',
-        badgeClass: 'bg-cyan-500/15 text-cyan-500 border border-cyan-500/20 font-bold',
+        badgeClass: 'bg-sky-50 text-sky-700 border border-sky-200 font-bold',
         isToday: false,
       };
     }
     return {
       nextDate: target,
-      nextDateStr: dateStr,
       daysRemaining: diff,
       label: `${diff} hari lagi`,
-      badgeClass: 'bg-primary/10 text-primary border border-primary/20',
+      badgeClass: 'bg-zinc-100 text-zinc-700 border border-zinc-200 font-medium',
       isToday: false,
     };
   }
 
-  // Yearly recurring (Birthday, Anniversary) - NEVER expired!
+  // Yearly recurring
   const parts = dateStr.split('-');
   const m = parseInt(parts[1], 10) - 1;
   const d = parseInt(parts[2], 10);
@@ -91,44 +165,40 @@ function getNextOccurrence(dateStr: string, isRecurringYearly: boolean): {
   let next = new Date(currentYear, m, d);
   next.setHours(0, 0, 0, 0);
 
-  // If this year's date has passed, next occurrence is in the next year
   if (next.getTime() < today.getTime()) {
     next = new Date(currentYear + 1, m, d);
   }
 
   const diff = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const nextDateStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
 
   if (diff === 0) {
     return {
       nextDate: next,
-      nextDateStr,
       daysRemaining: 0,
-      label: 'Hari Ini! 🎂🎉',
-      badgeClass: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 font-bold animate-pulse',
+      label: 'Hari ini (Tahunan)',
+      badgeClass: 'bg-violet-50 text-violet-700 border border-violet-200 font-bold',
       isToday: true,
     };
   }
   if (diff === 1) {
     return {
       nextDate: next,
-      nextDateStr,
       daysRemaining: 1,
-      label: 'Besok! 🎂',
-      badgeClass: 'bg-cyan-500/20 text-cyan-500 border border-cyan-500/30 font-bold',
+      label: 'Besok (Tahunan)',
+      badgeClass: 'bg-violet-50 text-violet-700 border border-violet-200 font-bold',
       isToday: false,
     };
   }
   return {
     nextDate: next,
-    nextDateStr,
     daysRemaining: diff,
     label: `${diff} hari lagi`,
-    badgeClass: 'bg-purple-500/15 text-purple-400 border border-purple-500/25 font-semibold',
+    badgeClass: 'bg-violet-50 text-violet-700 border border-violet-200 font-medium',
     isToday: false,
   };
 }
 
+/* ── MiniCalendar Bento Component ───────────────────────────── */
 function MiniCalendar({
   events,
   selectedDate,
@@ -159,38 +229,36 @@ function MiniCalendar({
     days.push(new Date(year, month, i));
   }
 
-  const monthNames = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-  ];
-
   return (
-    <div className="glass-card p-5 rounded-3xl w-full">
+    <div className="bg-white rounded-[24px] p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] w-full">
       <div className="flex items-center justify-between mb-4">
-        <h4 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-          {monthNames[month]} {year}
-        </h4>
-        <div className="flex items-center gap-1">
+        <div>
+          <h4 className="text-sm font-bold text-zinc-900 font-heading">
+            {MONTH_NAMES[month]}, {year}
+          </h4>
+          <span className="text-[11px] text-zinc-400 font-medium">Kalender Interaktif</span>
+        </div>
+        <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-xl">
           <button
+            type="button"
             onClick={prevMonth}
-            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-surface-hover text-muted hover:text-foreground"
+            aria-label="Bulan sebelumnya"
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
+            <ChevronLeft className="w-3.5 h-3.5" />
           </button>
           <button
+            type="button"
             onClick={nextMonth}
-            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-surface-hover text-muted hover:text-foreground"
+            aria-label="Bulan berikutnya"
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-muted mb-2 uppercase tracking-wider">
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-zinc-400 mb-2 uppercase tracking-wider">
         <span>Min</span><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span>
       </div>
 
@@ -212,15 +280,15 @@ function MiniCalendar({
               onClick={() => onSelectDate(date)}
               className={`h-8 rounded-xl text-xs font-semibold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
                 isSelected
-                  ? 'bg-primary text-white shadow-sm'
+                  ? 'bg-zinc-900 text-white shadow-sm font-bold'
                   : isToday
-                  ? 'border border-primary text-primary font-bold'
-                  : 'hover:bg-surface-hover text-foreground/80'
+                  ? 'border border-zinc-900 text-zinc-900 font-bold bg-zinc-50'
+                  : 'hover:bg-zinc-100 text-zinc-700'
               }`}
             >
               <span>{date.getDate()}</span>
               {hasEvent && (
-                <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-white' : 'bg-primary'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-lime-400' : 'bg-lime-500'}`} />
               )}
             </button>
           );
@@ -236,9 +304,10 @@ export default function AgendaPage() {
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTab, setCurrentTab] = useState<'upcoming' | 'all' | 'history'>('upcoming');
+  const [currentTab, setCurrentTab] = useState<'upcoming' | 'all' | 'yearly' | 'history'>('upcoming');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isCalendarOpenMobile, setIsCalendarOpenMobile] = useState(false);
 
   const [form, setForm] = useState({
     title: '',
@@ -248,23 +317,25 @@ export default function AgendaPage() {
   });
 
   const loadEvents = useCallback(async () => {
+    if (!user?.email) return;
     setLoading(true);
-    const userEmail = user?.email || 'yosafatmiquel@gmail.com';
+    const userEmail = user.email;
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Mark passed NON-RECURRING events as history (recurring events like birthdays are NEVER history!)
-    await supabase
-      .from('events')
-      .update({ is_history: true })
-      .or(`user_email.eq.${userEmail},user_email.eq.yosafatmiquel@gmail.com`)
-      .eq('is_recurring_yearly', false)
-      .eq('is_history', false)
-      .lt('event_date', todayStr);
+    try {
+      await supabase
+        .from('events')
+        .update({ is_history: true })
+        .eq('user_email', userEmail)
+        .eq('is_recurring_yearly', false)
+        .eq('is_history', false)
+        .lt('event_date', todayStr);
+    } catch {}
 
     const { data } = await supabase
       .from('events')
       .select('*')
-      .or(`user_email.eq.${userEmail},user_email.eq.yosafatmiquel@gmail.com`)
+      .eq('user_email', userEmail)
       .order('event_date', { ascending: true });
 
     setEvents(data || []);
@@ -277,13 +348,16 @@ export default function AgendaPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.event_date) return;
-    const userEmail = user?.email || 'yosafatmiquel@gmail.com';
+    if (!form.title.trim() || !form.event_date || !user?.email) {
+      toast.error('Harap lengkapi judul dan tanggal acara.');
+      return;
+    }
+    const userEmail = user.email;
 
     const { error } = await supabase.from('events').insert({
       user_email: userEmail,
-      title: form.title,
-      description: form.description || null,
+      title: form.title.trim(),
+      description: form.description?.trim() || null,
       event_date: form.event_date,
       is_recurring_yearly: form.is_recurring_yearly,
       is_history: false,
@@ -294,15 +368,19 @@ export default function AgendaPage() {
       return;
     }
 
-    toast.success('Event berhasil ditambahkan!');
+    toast.success('Agenda baru berhasil ditambahkan!');
     setForm({ title: '', description: '', event_date: '', is_recurring_yearly: false });
     setIsModalOpen(false);
     loadEvents();
   };
 
   const executeDelete = async () => {
-    if (!deleteId) return;
-    const { error } = await supabase.from('events').delete().eq('id', deleteId);
+    if (!deleteId || !user?.email) return;
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', deleteId)
+      .eq('user_email', user.email);
     if (error) {
       toast.error('Gagal menghapus event!');
     } else {
@@ -312,280 +390,474 @@ export default function AgendaPage() {
     loadEvents();
   };
 
-  // Filter and sort events
   const filteredEvents = events.filter((e) => {
     if (selectedDate) {
       const selectedStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
       const selectedMonthDay = `${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
       return e.is_recurring_yearly ? e.event_date.slice(5) === selectedMonthDay : e.event_date === selectedStr;
     }
-    // Recurring events are NEVER history, they belong in 'upcoming' and 'all'
+    if (currentTab === 'yearly') return e.is_recurring_yearly;
     if (currentTab === 'history') return e.is_history && !e.is_recurring_yearly;
     if (currentTab === 'upcoming') return !e.is_history || e.is_recurring_yearly;
     return true;
   });
 
-  // Sort upcoming events so nearest occurrence appears first
   const displayEvents = [...filteredEvents].sort((a, b) => {
     const occA = getNextOccurrence(a.event_date, a.is_recurring_yearly);
     const occB = getNextOccurrence(b.event_date, b.is_recurring_yearly);
     return occA.nextDate.getTime() - occB.nextDate.getTime();
   });
 
+  const totalCount = events.length;
+  const upcomingCount = events.filter((e) => !e.is_history || e.is_recurring_yearly).length;
+  const yearlyCount = events.filter((e) => e.is_recurring_yearly).length;
+  const historyCount = events.filter((e) => e.is_history && !e.is_recurring_yearly).length;
+
+  const today = new Date();
+  const daysID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const dateFormatted = `${daysID[today.getDay()]}, ${today.getDate()} ${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}`;
+
   return (
-    <div className="space-y-6 sm:space-y-8 pb-10">
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1580px] mx-auto space-y-6 bg-[#f8f9fc] min-h-screen">
+
+      {/* ── TOP HEADER SECTION: Agenda Title & Actions ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1"
+      >
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-            Agenda & Kalender
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 rounded-lg bg-zinc-900 text-white text-[11px] font-bold tracking-wider uppercase font-mono shadow-sm">
+              AGENDA & EVENTS
+            </span>
+            <span className="w-1 h-1 rounded-full bg-zinc-300" />
+            <span className="text-[12px] text-zinc-400 font-medium">{dateFormatted}</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-bold text-zinc-900 font-heading tracking-tight leading-tight">
+            Agenda & Events
           </h1>
-          <p className="text-muted text-xs sm:text-sm mt-1">
-            Jadwal meeting, deadline penting, dan agenda tahunan terintegrasi dengan reminder.
+          <p className="text-[13px] text-zinc-400 mt-0.5 font-medium">
+            Kelola jadwal pertemuan, deadline proyek, target peluncuran, dan acara penting Anda.
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (selectedDate) {
-              const dStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-              setForm((prev) => ({ ...prev, event_date: dStr }));
-            }
-            setIsModalOpen(true);
-          }}
-          className="w-full sm:w-auto px-5 py-2.5 rounded-2xl font-bold text-xs text-white shadow-lg shadow-indigo-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-          style={{ background: 'var(--gradient-primary)' }}
+        {/* Action Button */}
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedDate) {
+                const dStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+                setForm((prev) => ({ ...prev, event_date: dStr }));
+              }
+              setIsModalOpen(true);
+            }}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-[12px] font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>Tambah Agenda Baru</span>
+          </button>
+        </div>
+      </motion.div>
+
+      {/* ── 4 STAT CARDS (Bento Row) ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        
+        {/* Card 1: Total Agenda */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[20px] sm:rounded-[24px] p-3.5 sm:p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          <span>Tambah Agenda Baru</span>
-        </button>
+          <div className="flex items-center gap-2 text-zinc-700 mb-2 sm:mb-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center shrink-0">
+              <CalendarIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+            <span className="text-[12px] sm:text-[13px] font-semibold text-zinc-800">Total Agenda</span>
+          </div>
+          <div>
+            <div className="text-[26px] sm:text-[32px] lg:text-[36px] font-bold text-zinc-900 leading-none tracking-tight font-heading">
+              {totalCount}
+            </div>
+            <div className="flex items-center justify-between mt-1.5 sm:mt-2.5">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">Semua acara</p>
+              <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200 shrink-0">
+                All
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Card 2: Upcoming */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-[20px] sm:rounded-[24px] p-3.5 sm:p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between"
+        >
+          <div className="flex items-center gap-2 text-zinc-700 mb-2 sm:mb-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-lime-50 text-lime-600 flex items-center justify-center shrink-0">
+              <CalendarCheckIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+            <span className="text-[12px] sm:text-[13px] font-semibold text-zinc-800">Mendatang</span>
+          </div>
+          <div>
+            <div className="text-[26px] sm:text-[32px] lg:text-[36px] font-bold text-zinc-900 leading-none tracking-tight font-heading">
+              {upcomingCount}
+            </div>
+            <div className="flex items-center justify-between mt-1.5 sm:mt-2.5">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">Jadwal aktif</p>
+              <span className="inline-flex items-center gap-0.5 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-lime-50 text-lime-700 border border-lime-200 shrink-0">
+                Active <ArrowUpRight className="w-2.5 h-2.5 text-lime-600" />
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Card 3: Yearly Recurring */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-[20px] sm:rounded-[24px] p-3.5 sm:p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between"
+        >
+          <div className="flex items-center gap-2 text-zinc-700 mb-2 sm:mb-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+              <RepeatIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+            <span className="text-[12px] sm:text-[13px] font-semibold text-zinc-800">Tahunan</span>
+          </div>
+          <div>
+            <div className="text-[26px] sm:text-[32px] lg:text-[36px] font-bold text-zinc-900 leading-none tracking-tight font-heading">
+              {yearlyCount}
+            </div>
+            <div className="flex items-center justify-between mt-1.5 sm:mt-2.5">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">Ulang tahun</p>
+              <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200 shrink-0">
+                Yearly
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Card 4: History */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-[20px] sm:rounded-[24px] p-3.5 sm:p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between"
+        >
+          <div className="flex items-center gap-2 text-zinc-700 mb-2 sm:mb-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center shrink-0">
+              <HistoryIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+            <span className="text-[12px] sm:text-[13px] font-semibold text-zinc-800">Riwayat</span>
+          </div>
+          <div>
+            <div className="text-[26px] sm:text-[32px] lg:text-[36px] font-bold text-zinc-900 leading-none tracking-tight font-heading">
+              {historyCount}
+            </div>
+            <div className="flex items-center justify-between mt-1.5 sm:mt-2.5">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">Selesai</p>
+              <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200 shrink-0">
+                Past
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
       </div>
 
-      {/* ── Main Layout: Calendar Widget + Events Feed ──────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Mini Calendar & Filter Tabs */}
-        <div className="lg:col-span-4 space-y-4">
-          <MiniCalendar
-            events={events}
-            selectedDate={selectedDate}
-            onSelectDate={(d) => {
-              if (selectedDate && selectedDate.toDateString() === d.toDateString()) {
-                setSelectedDate(null); // toggle off
-              } else {
-                setSelectedDate(d);
-              }
-            }}
-          />
+      {/* ── BENTO MAIN CONTENT (12 Columns) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+        
+        {/* Left Col (4 cols): Mini Calendar & Tabs */}
+        <div className="lg:col-span-4 space-y-3 sm:space-y-4">
+          
+          {/* Mobile Calendar Toggle Bar */}
+          <div className="lg:hidden flex items-center justify-between p-3 rounded-2xl bg-white border border-zinc-200/80 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <CalendarIcon className="w-4 h-4 text-zinc-600 shrink-0" />
+              <span className="text-xs font-bold text-zinc-800 truncate">
+                {selectedDate
+                  ? selectedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : 'Kalender Bulanan'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCalendarOpenMobile(!isCalendarOpenMobile)}
+              className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-xs font-bold text-zinc-700 transition-colors shrink-0"
+            >
+              {isCalendarOpenMobile ? 'Tutup Kalender ▲' : 'Buka Kalender ▼'}
+            </button>
+          </div>
+
+          {/* Calendar Widget (Collapsible on Mobile, Always Visible on Desktop) */}
+          <div className={`${isCalendarOpenMobile ? 'block' : 'hidden'} lg:block`}>
+            <MiniCalendar
+              events={events}
+              selectedDate={selectedDate}
+              onSelectDate={(d) => {
+                if (selectedDate && selectedDate.toDateString() === d.toDateString()) {
+                  setSelectedDate(null);
+                } else {
+                  setSelectedDate(d);
+                }
+              }}
+            />
+          </div>
 
           {selectedDate && (
-            <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs">
-              <span className="font-semibold text-primary">
-                Filter: {selectedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3.5 rounded-[18px] bg-white border border-zinc-200/80 shadow-xs flex items-center justify-between"
+            >
+              <div>
+                <span className="text-[10px] font-bold text-lime-600 block uppercase tracking-wider">Filter Tanggal Aktif</span>
+                <span className="font-bold text-zinc-900 text-xs">
+                  {selectedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+              </div>
               <button
                 onClick={() => setSelectedDate(null)}
-                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                className="text-[11px] font-semibold text-zinc-400 hover:text-zinc-700 bg-zinc-100 px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
               >
-                Reset Filter
+                Reset
               </button>
-            </div>
+            </motion.div>
           )}
 
-          {/* Quick tab filters */}
-          <div className="glass-card p-2 rounded-2xl flex items-center justify-around text-xs">
-            {(['upcoming', 'all', 'history'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => {
-                  setSelectedDate(null);
-                  setCurrentTab(t);
-                }}
-                className={`flex-1 py-2 rounded-xl font-bold capitalize transition-all cursor-pointer ${
-                  currentTab === t && !selectedDate
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-muted hover:text-foreground'
-                }`}
-              >
-                {t === 'upcoming' ? 'Mendatang' : t === 'all' ? 'Semua' : 'Riwayat'}
-              </button>
-            ))}
+          {/* Filter Pills (Horizontal on Mobile, Vertical on Desktop) */}
+          <div className="bg-white rounded-[22px] sm:rounded-[24px] p-2 sm:p-3 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]">
+            <p className="hidden lg:block text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-2 py-1 mb-1">
+              Kategori Tampilan
+            </p>
+            <div className="flex flex-row lg:flex-col overflow-x-auto no-scrollbar gap-1.5">
+              {[
+                { id: 'upcoming', label: 'Mendatang', fullLabel: 'Jadwal Mendatang', count: upcomingCount },
+                { id: 'all', label: 'Semua', fullLabel: 'Semua Agenda', count: totalCount },
+                { id: 'yearly', label: 'Tahunan', fullLabel: 'Acara Tahunan', count: yearlyCount },
+                { id: 'history', label: 'Riwayat', fullLabel: 'Riwayat Selesai', count: historyCount },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setSelectedDate(null);
+                    setCurrentTab(tab.id as any);
+                  }}
+                  className={`flex-1 lg:flex-initial flex items-center justify-between gap-2 px-3 py-2 sm:py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    currentTab === tab.id && !selectedDate
+                      ? 'bg-zinc-900 text-white font-bold shadow-xs'
+                      : 'text-zinc-600 hover:bg-zinc-100'
+                  }`}
+                >
+                  <span>
+                    <span className="lg:hidden">{tab.label}</span>
+                    <span className="hidden lg:inline">{tab.fullLabel}</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                    currentTab === tab.id && !selectedDate ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Events List */}
-        <div className="lg:col-span-8 space-y-3.5">
+        {/* Right Col (8 cols): Event Cards Feed */}
+        <div className="lg:col-span-8 space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-bold text-zinc-900 font-heading">
+              Daftar Agenda ({displayEvents.length})
+            </h3>
+            <span className="text-[11px] text-zinc-400">Diurutkan jadwal terdekat</span>
+          </div>
+
           {loading ? (
-            <div className="py-20 flex justify-center items-center">
-              <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="bg-white rounded-[22px] sm:rounded-[24px] p-4 sm:p-5 border border-zinc-200/80 animate-pulse flex items-center gap-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-zinc-100 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-zinc-100 rounded w-1/3" />
+                    <div className="h-3 bg-zinc-50 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : displayEvents.length > 0 ? (
-            displayEvents.map((ev) => {
-              const occ = getNextOccurrence(ev.event_date, ev.is_recurring_yearly);
-              return (
-                <motion.div
-                  key={ev.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="glass-card p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
-                >
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${occ.badgeClass}`}>
-                        {occ.label}
-                      </span>
-                      {ev.is_recurring_yearly && (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                          Ulang Tahun / Tahunan 🔁
-                        </span>
-                      )}
-                      <span className="text-[11px] font-mono text-muted">
-                        {ev.is_recurring_yearly
-                          ? `Tiap ${formatIndoDate(ev.event_date).slice(0, -5)} • Berikutnya: ${formatIndoDate(occ.nextDateStr)}`
-                          : formatIndoDate(ev.event_date)}
-                      </span>
-                    </div>
-
-                    <h3 className="text-base font-bold text-foreground leading-snug" style={{ fontFamily: 'var(--font-heading)' }}>
-                      {ev.title}
-                    </h3>
-                    {ev.description && (
-                      <p className="text-xs text-muted leading-relaxed line-clamp-2">
-                        {ev.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <button
-                      onClick={() => setDeleteId(ev.id)}
-                      className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-danger/10 text-muted hover:text-danger border border-border/60 transition-colors cursor-pointer"
-                      title="Hapus Event"
-                    >
-                      <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                      </svg>
-                    </button>
-                  </div>
-                </motion.div>
-              );
-            })
-          ) : (
-            <div className="glass-card py-16 text-center text-muted p-6 flex flex-col items-center justify-center">
-              <svg className="w-10 h-10 text-muted/40 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-              </svg>
-              <h4 className="text-base font-bold text-foreground mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
-                Tidak ada agenda
-              </h4>
-              <p className="text-xs max-w-sm mb-4">
-                Belum ada jadwal yang tersimpan untuk filter saat ini.
+          ) : displayEvents.length === 0 ? (
+            <div className="bg-white rounded-[24px] p-8 sm:p-12 border border-zinc-200/80 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-400 mx-auto">
+                <CalendarIcon className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-zinc-800 font-heading">Tidak ada agenda</h4>
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+                Belum ada jadwal yang cocok dengan filter yang dipilih. Tambahkan agenda baru untuk mulai mengatur timeline.
               </p>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 text-white text-xs font-bold hover:bg-black transition-all"
               >
-                Buat Jadwal Baru
+                <PlusIcon className="w-3.5 h-3.5" /> Buat Agenda Sekarang
               </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5 sm:space-y-3">
+              {displayEvents.map((ev) => {
+                const occ = getNextOccurrence(ev.event_date, ev.is_recurring_yearly);
+                const parts = ev.event_date.split('-');
+                const monthShort = MONTH_SHORT[parseInt(parts[1], 10) - 1];
+                const dayNum = parseInt(parts[2], 10);
+                const yearNum = parts[0];
+
+                return (
+                  <motion.div
+                    key={ev.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-[20px] sm:rounded-[24px] p-3.5 sm:p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
+                  >
+                    <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+                      {/* Date Block */}
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-zinc-50 border border-zinc-200/80 flex flex-col items-center justify-center shrink-0">
+                        <span className="text-[9px] font-extrabold text-zinc-400 tracking-wider font-mono uppercase">{monthShort}</span>
+                        <span className="text-[18px] sm:text-[20px] font-extrabold text-zinc-900 font-heading leading-tight">{dayNum}</span>
+                      </div>
+
+                      {/* Content */}
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <h4 className="text-sm font-bold text-zinc-900 leading-snug break-words">{ev.title}</h4>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold ${occ.badgeClass}`}>
+                            {occ.label}
+                          </span>
+                          {ev.is_recurring_yearly && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                              <RepeatIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Tahunan
+                            </span>
+                          )}
+                        </div>
+
+                        {ev.description && (
+                          <p className="text-xs text-zinc-500 line-clamp-2 break-words">{ev.description}</p>
+                        )}
+
+                        <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">
+                          {ev.is_recurring_yearly ? `Setiap ${dayNum} ${MONTH_NAMES[parseInt(parts[1], 10) - 1]}` : `${dayNum} ${MONTH_NAMES[parseInt(parts[1], 10) - 1]} ${yearNum}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action */}
+                    <div className="flex items-center justify-end sm:justify-center shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-zinc-100">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteId(ev.id)}
+                        className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Hapus Agenda"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>
+
       </div>
 
-      {/* ── Add Event Modal ──────────────────────────────────────── */}
+      {/* ── MODAL: ADD EVENT ── */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-background/80 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative w-full max-w-lg bg-card rounded-3xl p-6 sm:p-7 border border-border shadow-2xl z-10"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] sm:rounded-[28px] p-4 sm:p-6 max-w-md w-full shadow-2xl border border-zinc-200 space-y-4 max-h-[92vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-5 pb-3 border-b border-border/60">
-                <h3 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-                  Tambah Agenda Baru
-                </h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 font-heading">Tambah Agenda Baru</h3>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">Jadwalkan rapat, deadline, atau acara rutin</p>
+                </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground"
+                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 transition-colors"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <XIcon className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleAdd} className="space-y-4">
+              <form onSubmit={handleAdd} className="space-y-4 pt-1">
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1.5">Nama Acara / Agenda</label>
+                  <label className="block text-[11px] font-bold text-zinc-700 mb-1">Judul Agenda</label>
                   <input
                     type="text"
                     required
                     value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    placeholder="Contoh: Sprint Review & Release v2.0"
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground placeholder:text-muted/60 focus:border-primary outline-none"
-                    autoFocus
+                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="misal: Sprint Review & Demo AI"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-[13px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1.5">Tanggal Acara</label>
+                  <label className="block text-[11px] font-bold text-zinc-700 mb-1">Tanggal Acara</label>
                   <input
                     type="date"
                     required
                     value={form.event_date}
-                    onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-border text-sm font-semibold text-foreground focus:border-primary outline-none"
+                    onChange={(e) => setForm((f) => ({ ...f, event_date: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-[13px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1.5">Deskripsi (Opsional)</label>
+                  <label className="block text-[11px] font-bold text-zinc-700 mb-1">Deskripsi (Opsional)</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder="Keterangan lokasi, link meeting, atau catatan persiapan..."
-                    className="w-full p-3.5 rounded-xl bg-surface border border-border text-xs text-foreground placeholder:text-muted/60 focus:border-primary outline-none resize-none leading-relaxed"
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Catatan tambahan, agenda rapat, atau link meeting..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-[13px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 resize-none"
                   />
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-surface-hover/80 border border-border flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-foreground">Acara Berulang Tahunan</p>
-                    <p className="text-[10px] text-muted">Ulang tahun, peringatan tahunan, dll.</p>
-                  </div>
+                <div className="flex items-center gap-2.5 pt-1">
                   <input
                     type="checkbox"
+                    id="is_recurring"
                     checked={form.is_recurring_yearly}
-                    onChange={(e) => setForm({ ...form, is_recurring_yearly: e.target.checked })}
-                    className="w-5 h-5 rounded-md accent-primary cursor-pointer"
+                    onChange={(e) => setForm((f) => ({ ...f, is_recurring_yearly: e.target.checked }))}
+                    className="w-4 h-4 rounded text-zinc-900 focus:ring-zinc-900 border-zinc-300"
                   />
+                  <label htmlFor="is_recurring" className="text-xs font-semibold text-zinc-700 cursor-pointer">
+                    Ulangi setiap tahun (Acara Tahunan)
+                  </label>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-border/60">
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-muted hover:text-foreground"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 hover:bg-zinc-100 transition-colors"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl font-bold text-xs text-white shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-                    style={{ background: 'var(--gradient-primary)' }}
+                    className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
                   >
                     Simpan Agenda
                   </button>
@@ -596,14 +868,15 @@ export default function AgendaPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Confirm Delete Modal ─────────────────────────────────── */}
+      {/* ── CONFIRM DELETE MODAL ── */}
       <ConfirmModal
         isOpen={!!deleteId}
-        title="Hapus Agenda?"
-        message="Agenda ini akan dihapus dari kalender kerja Anda."
+        title="Hapus Agenda"
+        message="Apakah Anda yakin ingin menghapus agenda ini? Tindakan ini tidak dapat dibatalkan."
         onConfirm={executeDelete}
         onCancel={() => setDeleteId(null)}
       />
+
     </div>
   );
 }

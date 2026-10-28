@@ -50,10 +50,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#111827" },
-    { media: "(prefers-color-scheme: dark)", color: "#111827" },
-  ],
+  themeColor: "#f4f6fb",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -70,7 +67,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 
         {/* iOS PWA meta */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
         <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png?v=3" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
@@ -78,21 +75,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png?v=3" />
         <link rel="shortcut icon" href="/favicon.ico?v=3" />
         <meta name="mobile-web-app-capable" content="yes" />
-
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                const saved = localStorage.getItem('theme');
-                if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
-              } catch (_) {}
-            `,
-          }}
-        />
       </head>
       <body className="min-h-screen bg-background text-foreground font-sans">
         <Toaster

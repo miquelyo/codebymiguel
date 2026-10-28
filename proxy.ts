@@ -28,14 +28,9 @@ export function proxy(request: NextRequest) {
   const now = Date.now();
   let isIdle = false;
 
-  if (session) {
-    if (lastActiveStr) {
-      const lastActive = parseInt(lastActiveStr, 10);
-      if (isNaN(lastActive) || now - lastActive > IDLE_TIMEOUT_MS) {
-        isIdle = true;
-      }
-    } else {
-      // Jika cookie sesi ada tapi cookie last active sudah hilang (kadaluarsa > 15 mnt)
+  if (session && lastActiveStr) {
+    const lastActive = parseInt(lastActiveStr, 10);
+    if (!isNaN(lastActive) && now - lastActive > IDLE_TIMEOUT_MS) {
       isIdle = true;
     }
   }

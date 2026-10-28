@@ -1,15 +1,12 @@
-// Basic service worker for PWA installation
+// Service Worker v2 - Clean cache cleaner & PWA support
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
-});
-
-self.addEventListener('fetch', (event) => {
-  // Pass through all requests
-  event.respondWith(fetch(event.request).catch(() => {
-    // Basic fallback if needed
-  }));
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(keys.map((key) => caches.delete(key)));
+    }).then(() => self.clients.claim())
+  );
 });

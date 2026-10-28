@@ -1,11 +1,52 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
 import FaceScanner from '@/app/components/FaceScanner';
 import toast from 'react-hot-toast';
+
+/* ─── Clean SVG Icons ────────────────────────────────────────── */
+function ClockIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+function MapPinIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+function CameraIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+      <circle cx="12" cy="13" r="3" />
+    </svg>
+  );
+}
+function CheckCircleIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+function XIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
 
 // ─── Types ──────────────────────────────────────────────────────
 interface AttendanceRecord {
@@ -104,25 +145,18 @@ function getTimeParts(date: Date, timeZone: string) {
   };
 }
 
-function getDateParts(date: Date, timeZone: string) {
+function calcCheckoutTarget(checkInDate: Date, timeZone: string): Date {
+  const plus8 = new Date(checkInDate.getTime() + 8 * 60 * 60 * 1000);
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-    weekday: 'short',
-  }).formatToParts(date);
-  return {
-    year: Number(parts.find((p) => p.type === 'year')?.value ?? 0),
-    month: Number(parts.find((p) => p.type === 'month')?.value ?? 0),
-    day: Number(parts.find((p) => p.type === 'day')?.value ?? 0),
-    weekday: parts.find((p) => p.type === 'weekday')?.value ?? '',
-  };
-}
+  }).formatToParts(checkInDate);
+  const y = Number(parts.find((p) => p.type === 'year')?.value ?? 0);
+  const m = Number(parts.find((p) => p.type === 'month')?.value ?? 0);
+  const d = Number(parts.find((p) => p.type === 'day')?.value ?? 0);
 
-function calcCheckoutTarget(checkInDate: Date, timeZone: string): Date {
-  const plus8 = new Date(checkInDate.getTime() + 8 * 60 * 60 * 1000);
-  const parts = getDateParts(checkInDate, timeZone);
   const offsetHours =
     timeZone === 'Asia/Jakarta'
       ? 7
@@ -132,20 +166,8 @@ function calcCheckoutTarget(checkInDate: Date, timeZone: string): Date {
       ? 9
       : -new Date(checkInDate).getTimezoneOffset() / 60;
 
-  const floor = new Date(
-    Date.UTC(parts.year, parts.month - 1, parts.day, 15 - offsetHours, 0, 0)
-  );
+  const floor = new Date(Date.UTC(y, m - 1, d, 15 - offsetHours, 0, 0));
   return plus8 > floor ? plus8 : floor;
-}
-
-function fmtDate(dateStr: string, timeZone?: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone,
-  });
 }
 
 function calcDuration(cin: string | null, cout: string | null): string {
@@ -156,7 +178,7 @@ function calcDuration(cin: string | null, cout: string | null): string {
   return `${h}j ${m}m`;
 }
 
-// ─── Seed Data (Mulai Presensi 9 Oktober 2026 - Jumat) ─────────
+// ─── Seed Data ─────────────────────────────────────────────────
 const SEED_ATTENDANCE: AttendanceRecord[] = [
   {
     id: 'seed-2026-10-09',
@@ -175,20 +197,21 @@ const SEED_ATTENDANCE: AttendanceRecord[] = [
   },
 ];
 
-// ─── Generator Riwayat Hari Kerja (Senin–Jumat) ────────────────
-function buildFullAttendanceHistory(dbRecords: AttendanceRecord[]): AttendanceRecord[] {
+function buildFullAttendanceHistory(dbRecords: AttendanceRecord[], userEmail?: string): AttendanceRecord[] {
   const mapByDate = new Map<string, AttendanceRecord>();
 
-  // 1. Seed attendance
-  SEED_ATTENDANCE.forEach((rec) => mapByDate.set(rec.date, rec));
+  if (userEmail === 'yosafatmiquel@gmail.com') {
+    SEED_ATTENDANCE.forEach((rec) => mapByDate.set(rec.date, rec));
+  }
 
-  // 2. DB records
   dbRecords.forEach((rec) => mapByDate.set(rec.date, rec));
 
-  // 3. LocalStorage records
   if (typeof window !== 'undefined') {
     try {
-      const local = localStorage.getItem('codebymiguel_attendance_local');
+      const localKey = userEmail ? `codebymiguel_attendance_${userEmail}` : 'codebymiguel_attendance_local';
+      const local =
+        localStorage.getItem(localKey) ||
+        (userEmail === 'yosafatmiquel@gmail.com' ? localStorage.getItem('codebymiguel_attendance_local') : null);
       if (local) {
         const parsed: AttendanceRecord[] = JSON.parse(local);
         parsed.forEach((rec) => mapByDate.set(rec.date, rec));
@@ -196,26 +219,24 @@ function buildFullAttendanceHistory(dbRecords: AttendanceRecord[]): AttendanceRe
     } catch {}
   }
 
-  // 4. Generate all workdays from 2026-10-09 up to today
   const results: AttendanceRecord[] = [];
-  const start = new Date(2026, 9, 9, 0, 0, 0); // 9 Oktober 2026 (Jumat)
+  const start = new Date(2026, 9, 9, 0, 0, 0); // 9 Oktober 2026
   const now = new Date();
   const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   let curr = new Date(start);
   while (curr.getTime() <= todayDate.getTime()) {
-    const dayOfWeek = curr.getDay(); // 0: Sunday, 6: Saturday
+    const dayOfWeek = curr.getDay();
     const yyyy = curr.getFullYear();
     const mm = String(curr.getMonth() + 1).padStart(2, '0');
     const dd = String(curr.getDate()).padStart(2, '0');
     const dStr = `${yyyy}-${mm}-${dd}`;
 
-    // STRICT: Hari Sabtu & Minggu memang libur, JANGAN dimasukkan ke riwayat!
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       if (mapByDate.has(dStr)) {
         results.push(mapByDate.get(dStr)!);
-      } else if (curr.getTime() < todayDate.getTime()) {
-        // Hari kerja masa lalu yang tidak ada rekaman absensi -> "Tidak Absen"
+      } else {
+        const isToday = curr.getTime() === todayDate.getTime();
         results.push({
           id: `absent-${dStr}`,
           date: dStr,
@@ -227,17 +248,15 @@ function buildFullAttendanceHistory(dbRecords: AttendanceRecord[]): AttendanceRe
           status: 'absent',
           check_in_latitude: null,
           check_in_longitude: null,
-          check_in_location: '— (Tidak Hadir)',
+          check_in_location: isToday ? '— (Belum Hadir)' : '— (Tidak Hadir)',
           check_in_timezone: 'Asia/Jakarta',
           check_in_timezone_label: 'WIB',
         });
       }
     }
-
     curr.setDate(curr.getDate() + 1);
   }
 
-  // Urutkan tanggal terbaru paling atas
   return results.sort((a, b) => new Date(b.date + 'T00:00:00').getTime() - new Date(a.date + 'T00:00:00').getTime());
 }
 
@@ -249,12 +268,11 @@ export default function AttendancePage() {
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [isLoadingToday, setIsLoadingToday] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scannerMode, setScannerMode] = useState<'in' | 'out' | 'test' | null>(null);
+  const [scannerMode, setScannerMode] = useState<'in' | 'out' | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(true);
-  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Clock ticker
   useEffect(() => {
@@ -266,7 +284,13 @@ export default function AttendancePage() {
   // Fetch Attendance records
   const fetchData = useCallback(async () => {
     setIsLoadingToday(true);
-    const userEmail = user?.email || 'yosafatmiquel@gmail.com';
+    if (!user?.email) {
+      setToday(null);
+      setHistory([]);
+      setIsLoadingToday(false);
+      return;
+    }
+    const userEmail = user.email;
     const activeTz = locationInfo?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const todayStr = todayDateString(activeTz);
 
@@ -278,7 +302,7 @@ export default function AttendancePage() {
         supabase
           .from('attendance')
           .select('*')
-          .or(`user_email.eq.${userEmail},user_email.eq.yosafatmiquel@gmail.com`)
+          .eq('user_email', userEmail)
           .eq('date', todayStr)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -286,7 +310,7 @@ export default function AttendancePage() {
         supabase
           .from('attendance')
           .select('*')
-          .or(`user_email.eq.${userEmail},user_email.eq.yosafatmiquel@gmail.com`)
+          .eq('user_email', userEmail)
           .order('date', { ascending: false })
           .limit(30),
       ]);
@@ -296,11 +320,13 @@ export default function AttendancePage() {
       console.warn('Supabase fetch attendance fallback:', e);
     }
 
-    // Local storage cache read
     let localRecords: AttendanceRecord[] = [];
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('codebymiguel_attendance_local');
+        const userLocalKey = `codebymiguel_attendance_${userEmail}`;
+        const raw =
+          localStorage.getItem(userLocalKey) ||
+          (userEmail === 'yosafatmiquel@gmail.com' ? localStorage.getItem('codebymiguel_attendance_local') : null);
         if (raw) localRecords = JSON.parse(raw);
       } catch {}
     }
@@ -315,8 +341,7 @@ export default function AttendancePage() {
     const activeToday = sbToday || localRecords.find((r) => r.date === todayStr) || null;
     setToday(activeToday);
 
-    // Build full history with absent tracking for workdays
-    const fullHistory = buildFullAttendanceHistory(allKnown);
+    const fullHistory = buildFullAttendanceHistory(allKnown, userEmail);
     setHistory(fullHistory);
     setIsLoadingToday(false);
   }, [user, locationInfo?.timezone]);
@@ -328,7 +353,6 @@ export default function AttendancePage() {
   // Geolocation detection
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationError('Browser tidak mendukung akses GPS.');
       setIsGettingLocation(false);
       return;
     }
@@ -347,13 +371,10 @@ export default function AttendancePage() {
           timezone,
           timezoneLabel,
         });
-        setLocationError(null);
         setIsGettingLocation(false);
       },
       (err) => {
         console.warn('Geolocation error:', err);
-        setLocationError(err.code === 1 ? 'Akses GPS ditolak.' : 'GPS sedang offline.');
-        // Fallback info
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         setLocationInfo({
           latitude: -6.2,
@@ -370,16 +391,11 @@ export default function AttendancePage() {
 
   // Handle Check-in
   const handleCheckIn = async (imageBase64?: string) => {
-    if (!now) return;
-
-    if (!locationInfo) {
-      toast.error('Lokasi belum siap. Mohon izinkan akses GPS.');
-      return;
-    }
+    if (!now || !locationInfo || !user?.email) return;
 
     const dayOfWeek = now.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
-      toast.error('Hari ini libur akhir pekan (Sabtu & Minggu). Tidak ada presensi.');
+      toast.error('Hari ini libur akhir pekan (Sabtu & Minggu). Tetap santai dan pulihkan energi!');
       return;
     }
 
@@ -387,21 +403,23 @@ export default function AttendancePage() {
     const totalMin = hour * 60 + minute;
 
     if (totalMin < 5 * 60) {
-      toast.error('Check-in belum dibuka. Jam operasional mulai pukul 05:00 WIB.');
+      toast.error('Check-in dibuka mulai pukul 05:00 pagi.');
+      return;
+    }
+
+    if (totalMin > 10 * 60) {
+      toast.error('Waktu check-in telah berakhir (maksimal pukul 10:00 pagi). Anda dicatat tidak hadir hari ini.');
       return;
     }
 
     let status: 'on_time' | 'late' = 'on_time';
-    if (totalMin > 10 * 60 + 30) {
-      status = 'late';
-      toast('Check-in di luar jam kerja (lewat 10:30 WIB) dicatat sebagai Terlambat.', { icon: '⚠️' });
-    } else if (totalMin > 8 * 60 + 30) {
+    if (totalMin > 8 * 60 + 30) {
       status = 'late';
     }
 
     setIsSubmitting(true);
-    const loadingToast = toast.loading('Memproses check-in biometrik...');
-    const userEmail = user?.email || 'yosafatmiquel@gmail.com';
+    const loadingToast = toast.loading('Memverifikasi presensi biometrik...');
+    const userEmail = user.email;
 
     const newRecord: AttendanceRecord = {
       id: 'att-' + Date.now(),
@@ -419,15 +437,14 @@ export default function AttendancePage() {
       check_out_image: null,
     };
 
-    // Save to local storage cache immediately
     try {
-      const existing = JSON.parse(localStorage.getItem('codebymiguel_attendance_local') || '[]');
+      const userLocalKey = `codebymiguel_attendance_${userEmail}`;
+      const existing = JSON.parse(localStorage.getItem(userLocalKey) || '[]');
       const filtered = existing.filter((r: AttendanceRecord) => r.date !== newRecord.date);
       filtered.unshift(newRecord);
-      localStorage.setItem('codebymiguel_attendance_local', JSON.stringify(filtered));
+      localStorage.setItem(userLocalKey, JSON.stringify(filtered));
     } catch {}
 
-    // Attempt Supabase insert
     try {
       await supabase.from('attendance').insert({
         user_email: userEmail,
@@ -443,757 +460,516 @@ export default function AttendancePage() {
         check_in_image: newRecord.check_in_image,
       });
     } catch (e) {
-      console.warn('Supabase insert note:', e);
+      console.warn('Supabase insert fallback to local cache:', e);
     }
 
-    setIsSubmitting(false);
     toast.dismiss(loadingToast);
-
-    toast.success(status === 'late' ? `Check-in berhasil (Terlambat) di ${locationInfo.location}` : `Check-in berhasil! Selamat bekerja (${locationInfo.location})`);
+    toast.success(
+      status === 'on_time'
+        ? 'Luar biasa! Hadir tepat waktu. Selamat memulai hari produktif!'
+        : 'Presensi berhasil dicatat (Terlambat). Tetap semangat hari ini!'
+    );
+    setIsSubmitting(false);
     setScannerMode(null);
     fetchData();
   };
 
   // Handle Check-out
   const handleCheckOut = async (imageBase64?: string) => {
-    if (!now || !today?.id) {
-      toast.error('Anda belum check-in hari ini!');
-      return;
-    }
-
-    // Strict validation: Tutup / Tolak checkout jika belum waktunya
-    const checkoutTargetDate = today?.checkout_target ? new Date(today.checkout_target) : null;
-    const canCheckOutNow = !!checkoutTargetDate && now >= checkoutTargetDate;
-    if (!canCheckOutNow) {
-      toast.error('Belum saatnya check-out! Tombol check-out terkunci hingga jam kerja minimal 8 jam terpenuhi.');
-      setScannerMode(null);
-      return;
-    }
+    if (!now || !today || !user?.email) return;
 
     setIsSubmitting(true);
-    const loadingToast = toast.loading('Memproses checkout biometrik...');
-    const updatedCheckout = now.toISOString();
+    const loadingToast = toast.loading('Menyimpan jam kepulangan...');
+    const userEmail = user.email;
+    const checkoutTime = now.toISOString();
 
-    // Update local storage
     try {
-      const existing = JSON.parse(localStorage.getItem('codebymiguel_attendance_local') || '[]');
+      const userLocalKey = `codebymiguel_attendance_${userEmail}`;
+      const existing = JSON.parse(localStorage.getItem(userLocalKey) || '[]');
       const updated = existing.map((r: AttendanceRecord) => {
-        if (r.id === today.id || r.date === today.date) {
-          return { ...r, check_out: updatedCheckout, check_out_image: imageBase64 || null };
+        if (r.date === today.date) {
+          return { ...r, check_out: checkoutTime, check_out_image: imageBase64 || r.check_out_image };
         }
         return r;
       });
-      localStorage.setItem('codebymiguel_attendance_local', JSON.stringify(updated));
+      localStorage.setItem(userLocalKey, JSON.stringify(updated));
     } catch {}
 
-    // Attempt Supabase update
     try {
       await supabase
         .from('attendance')
         .update({
-          check_out: updatedCheckout,
+          check_out: checkoutTime,
           check_out_image: imageBase64 || null,
         })
-        .eq('id', today.id);
+        .eq('user_email', userEmail)
+        .eq('date', today.date);
     } catch (e) {
-      console.warn('Supabase update note:', e);
+      console.warn('Supabase checkout update fallback:', e);
     }
 
-    setIsSubmitting(false);
     toast.dismiss(loadingToast);
-
-    toast.success('Check-out berhasil! Terima kasih atas dedikasi Anda hari ini.');
+    toast.success('Check-out berhasil dicatat. Terima kasih atas kerja kerasmu hari ini!');
+    setIsSubmitting(false);
     setScannerMode(null);
     fetchData();
   };
 
-  // Scanner callback
-  const handleFaceDetected = (descriptor: Float32Array, imageBase64: string) => {
-    if (scannerMode === 'in') {
-      handleCheckIn(imageBase64);
-    } else if (scannerMode === 'out') {
-      handleCheckOut(imageBase64);
-    } else if (scannerMode === 'test') {
-      toast.success('Wajah berhasil diverifikasi oleh AI!');
-      setScannerMode(null);
-    }
-  };
+  const tz = locationInfo?.timezone || 'Asia/Jakarta';
+  const currentHourMinute = now ? getTimeParts(now, tz) : { hour: 0, minute: 0 };
+  const currentTotalMin = currentHourMinute.hour * 60 + currentHourMinute.minute;
 
-  if (!now) return null;
+  const isBeforeOpening = currentTotalMin < 5 * 60; // sebelum 05:00
+  const isLatePeriod = currentTotalMin > 8 * 60 + 30 && currentTotalMin <= 10 * 60; // 08:31 - 10:00 (Terlambat)
+  const isCheckInClosed = currentTotalMin > 10 * 60; // lewat 10:00 pagi (Check in ditutup)
+  const isWeekend = now ? (now.getDay() === 0 || now.getDay() === 6) : false;
+  const canCheckIn = !today?.check_in && !isBeforeOpening && !isCheckInClosed && !isWeekend;
 
-  const activeTimezone = locationInfo?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const checkedIn = !!today?.check_in;
-  const checkedOut = !!today?.check_out;
-  const checkoutTargetDate = today?.checkout_target ? new Date(today.checkout_target) : null;
-  const canCheckOut = checkedIn && !checkedOut && !!checkoutTargetDate && now >= checkoutTargetDate;
+  const todayStrFormatted = now
+    ? new Intl.DateTimeFormat('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: locationInfo?.timezone,
+      }).format(now)
+    : 'Memuat tanggal...';
 
-  // Shift progress calculation
-  let workProgress = 0;
-  let remainingText = '';
-  if (checkedIn && today?.check_in && today?.checkout_target) {
-    const start = new Date(today.check_in).getTime();
-    const target = new Date(today.checkout_target).getTime();
-    const current = now.getTime();
-    const total = target - start;
-    const elapsed = current - start;
-    workProgress = checkedOut ? 100 : Math.min(100, Math.max(0, (elapsed / total) * 100));
-
-    if (!checkedOut && checkoutTargetDate && now < checkoutTargetDate) {
-      const diff = checkoutTargetDate.getTime() - now.getTime();
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      remainingText = h > 0 ? `${h} jam ${m} mnt lagi` : `${m} menit lagi`;
-    }
-  }
-
-  // Stats calculation
-  const attendedRecords = history.filter((h) => h.status === 'on_time' || h.status === 'late');
-  const totalAttendedCount = attendedRecords.length;
-  const absentCount = history.filter((h) => h.status === 'absent').length;
-  const onTimeCount = history.filter((h) => h.status === 'on_time').length;
-  const lateCount = history.filter((h) => h.status === 'late').length;
-  const onTimePercentage = totalAttendedCount > 0 ? Math.round((onTimeCount / totalAttendedCount) * 100) : 100;
-
-  // Time window rules calculation
-  const { hour, minute } = now ? getTimeParts(now, activeTimezone) : { hour: 0, minute: 0 };
-  const totalMin = hour * 60 + minute;
-  const isWeekend = now ? now.getDay() === 0 || now.getDay() === 6 : false;
-
-  const isBeforeOpen = totalMin < 5 * 60;
-  const isOnTimeWindow = totalMin >= 5 * 60 && totalMin <= 8 * 60 + 30;
-  const isLateWindow = totalMin > 8 * 60 + 30 && totalMin <= 10 * 60 + 30;
-  const isAfterClosed = totalMin > 10 * 60 + 30;
+  const currentTimeFormatted = now
+    ? new Intl.DateTimeFormat('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: locationInfo?.timezone,
+      }).format(now).replace(/\./g, ':')
+    : '--:--:--';
 
   return (
-    <div className="space-y-6 sm:space-y-8 pb-10">
-      {/* ── Top Hero Card: Biometric Status & Info ───────────────── */}
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1580px] mx-auto space-y-6 bg-[#f8f9fc] min-h-screen">
+
+      {/* ── TOP HEADER SECTION: Attendance & Motivation ── */}
       <motion.div
-        initial={{ opacity: 0, y: -14 }}
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl glass-panel p-4.5 sm:p-6 lg:p-8 border border-border/80 shadow-2xl"
+        transition={{ duration: 0.4 }}
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-1"
       >
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5 sm:gap-6">
-          <div className="space-y-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold uppercase tracking-wider ${
-                isWeekend
-                  ? 'bg-indigo-500/15 border-indigo-500/25 text-indigo-400'
-                  : 'bg-surface-hover border-border text-muted'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  isWeekend
-                    ? 'bg-indigo-400'
-                    : checkedIn
-                    ? (checkedOut ? 'bg-blue-500' : 'bg-emerald-500 animate-pulse')
-                    : 'bg-amber-500'
-                }`} />
-                {isWeekend
-                  ? 'Hari Libur (Weekend)'
-                  : checkedIn
-                  ? (checkedOut ? 'Presensi Selesai' : 'Sedang Bertugas')
-                  : 'Belum Presensi'}
-              </span>
-
-              {/* Operational Window Status Pill */}
-              {isWeekend ? (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/25 text-[11px] font-bold text-indigo-400">
-                  🌴 Hari Libur
-                </span>
-              ) : (
-                <>
-                  {isBeforeOpen && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-surface-hover border border-border text-[11px] font-bold text-muted">
-                      ⏳ Belum Buka (Mulai 05:00 WIB)
-                    </span>
-                  )}
-                  {isOnTimeWindow && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-[11px] font-bold text-emerald-500 animate-pulse">
-                      ✅ Jam Absensi Aktif (05:00–08:30 Tepat Waktu)
-                    </span>
-                  )}
-                  {isLateWindow && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/25 text-[11px] font-bold text-amber-500">
-                      ⚠️ Zona Terlambat (08:31–10:30 WIB)
-                    </span>
-                  )}
-                  {isAfterClosed && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/25 text-[11px] font-bold text-rose-500">
-                      🔒 Check-in Ditutup (Maks 10:30 WIB)
-                    </span>
-                  )}
-                </>
-              )}
-
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[11px] font-semibold text-cyan-500 font-mono">
-                {locationInfo?.timezoneLabel || 'WIB'}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-baseline gap-3">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-                Presensi Wajah AI
-              </h1>
-              <span className="text-xl sm:text-2xl font-black font-mono text-primary">
-                {now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':')}
-              </span>
-            </div>
-
-            <p className="text-muted text-xs sm:text-sm max-w-xl leading-relaxed">
-              Catat jam masuk dan kepulangan menggunakan verifikasi biometrik kamera serta lokasi GPS real-time.
-            </p>
-
-            {/* GPS Location Chip */}
-            <div className="flex items-center gap-2 text-xs text-muted pt-1">
-              <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                </svg>
-              </div>
-              <span className="font-medium text-foreground truncate max-w-[260px] sm:max-w-md" title={locationInfo?.location || ''}>
-                {isGettingLocation ? 'Mendeteksi titik koordinat GPS...' : locationInfo?.location || 'Lokasi Terdaftar'}
-              </span>
-            </div>
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 rounded-lg bg-zinc-900 text-white text-[11px] font-bold tracking-wider uppercase font-mono shadow-sm">
+              ATTENDANCE
+            </span>
+            <span className="w-1 h-1 rounded-full bg-zinc-300" />
+            <span className="text-[12px] text-zinc-400 font-medium">{todayStrFormatted}</span>
           </div>
-
-          {/* Status Indicator Widget on Hero Right */}
-          <div className="shrink-0 flex items-center">
-            {isWeekend ? (
-              <div className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-3">
-                <span className="text-2xl">🌴</span>
-                <div>
-                  <p className="text-xs font-bold text-foreground">Libur Akhir Pekan</p>
-                  <p className="text-[11px] text-muted">Tidak ada jadwal presensi</p>
-                </div>
-              </div>
-            ) : checkedIn ? (
-              <div className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
-                <span className="text-2xl">{checkedOut ? '🎉' : '💼'}</span>
-                <div>
-                  <p className="text-xs font-bold text-foreground">{checkedOut ? 'Tugas Selesai' : 'Sedang Bertugas'}</p>
-                  <p className="text-[11px] text-muted">
-                    {checkedOut ? 'Check-out berhasil dicatat' : `Masuk ${fmtTime(today?.check_in ?? null, activeTimezone)}`}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-surface-hover/80 border border-border flex items-center gap-3">
-                <span className="text-2xl">📋</span>
-                <div>
-                  <p className="text-xs font-bold text-foreground">Presensi Kerja</p>
-                  <p className="text-[11px] text-muted">Klik Presensi Masuk di bawah</p>
-                </div>
-              </div>
-            )}
-          </div>
+          <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-bold text-zinc-900 font-heading tracking-tight leading-tight">
+            Attendance & Discipline
+          </h1>
+          <p className="text-[13px] text-zinc-500 mt-0.5 font-medium max-w-2xl leading-relaxed">
+            Menjaga konsistensi bangun pagi, disiplin waktu, dan ritme produktivitas harian layaknya profesional.
+          </p>
         </div>
 
-        {/* Shift Progress bar if checked in */}
-        {checkedIn && (
-          <div className="mt-5 pt-4 border-t border-border/60 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-foreground">
-                Progress Kerja: {Math.round(workProgress)}%
-              </span>
-              <span className="text-muted font-medium">
-                {checkedOut ? 'Selesai 100%' : remainingText ? remainingText : 'Siap Checkout'}
-              </span>
-            </div>
-            <div className="w-full bg-border/40 h-2.5 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-400 transition-all duration-500 rounded-full"
-                style={{ width: `${workProgress}%` }}
-              />
+        {/* Live Clock & GPS Chip */}
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-white border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex items-center justify-between sm:justify-start gap-3">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime-500"></span>
+            </span>
+            <div className="min-w-0">
+              <div className="text-[15px] sm:text-[16px] font-mono font-bold text-zinc-900 leading-none">
+                {currentTimeFormatted} <span className="text-[11px] font-sans font-bold text-zinc-400">{locationInfo?.timezoneLabel || 'WIB'}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-zinc-400 font-medium mt-1">
+                <MapPinIcon className="w-3 h-3 text-zinc-400 shrink-0" />
+                <span className="truncate max-w-[200px]">{locationInfo?.location || 'Mencari sinyal GPS...'}</span>
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </motion.div>
 
-      {/* ── Notifikasi Hari Libur (Sabtu & Minggu) ───────────── */}
-      {isWeekend && (
+      {/* ── DUA KARTU AKSI UTAMA (Check-In & Check-Out) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+        
+        {/* ACTION CARD 1: CHECK IN */}
         <motion.div
-          initial={{ opacity: 0, y: -6 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-4 sm:p-5 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm"
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-[22px] sm:rounded-[28px] p-4 sm:p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between space-y-4 sm:space-y-5"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xl shrink-0">
-              🌴
-            </div>
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <h4 className="text-xs sm:text-sm font-bold text-foreground">
-                Hari Ini Libur Akhir Pekan ({now.toLocaleDateString('id-ID', { weekday: 'long' })})
-              </h4>
-              <p className="text-[11px] sm:text-xs text-muted mt-0.5">
-                Presensi kerja tidak berlaku pada hari Sabtu dan Minggu. Selamat beristirahat dan menikmati akhir pekan!
-              </p>
-            </div>
-          </div>
-          <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold border border-indigo-500/30 whitespace-nowrap self-end sm:self-auto">
-            Hari Libur
-          </span>
-        </motion.div>
-      )}
-
-      {/* ── Status Presensi Hari Ini: Check-in & Check-out ─────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Check-in Info Card */}
-        <div className="glass-card p-5 sm:p-6 rounded-3xl border border-border/80 space-y-3.5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-base">
-                📥
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-                  Check-in (Masuk)
-                </h3>
-                <p className="text-[11px] text-muted">Jadwal: 05:00 – 10:30 WIB</p>
-              </div>
-            </div>
-
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-              isWeekend
-                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
-                : checkedIn
-                ? today?.status === 'on_time'
-                  ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
-                  : 'bg-amber-500/15 text-amber-500 border border-amber-500/20'
-                : 'bg-surface-hover text-muted border border-border'
-            }`}>
-              {isWeekend ? '🌴 Hari Libur' : checkedIn ? (today?.status === 'on_time' ? 'Tepat Waktu' : 'Terlambat') : 'Belum Check-in'}
-            </span>
-          </div>
-
-          <div className="pt-2 border-t border-border/50 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-            <div>
-              <p className="text-2xl sm:text-3xl font-extrabold font-mono text-foreground">
-                {isWeekend && !checkedIn ? '— : —' : fmtTime(today?.check_in ?? null, activeTimezone)}
-              </p>
-              <p className="text-[11px] text-muted mt-1 leading-relaxed">
-                {isWeekend
-                  ? 'Hari libur akhir pekan (Sabtu & Minggu). Tidak ada presensi.'
-                  : checkedIn
-                  ? `Tercatat di ${today?.check_in_location || 'GPS Terdaftar'}`
-                  : 'Waktu check-in resmi: 05:00 - 10:30 WIB'}
+              <h3 className="text-lg sm:text-[20px] font-bold text-zinc-900 font-heading">
+                Check In
+              </h3>
+              <p className="text-[11px] sm:text-[12px] text-zinc-400 mt-0.5">
+                Scan wajah Anda untuk verifikasi kehadiran hari ini (05:00 – 10:00 WIB).
               </p>
             </div>
 
-            {isWeekend ? (
-              <button
-                disabled
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface border border-border/70 text-muted cursor-not-allowed opacity-60 flex items-center justify-center gap-1.5"
-              >
-                <span>🌴 Hari Libur (Non-Aktif)</span>
-              </button>
-            ) : !checkedIn ? (
-              <button
-                onClick={() => setScannerMode('in')}
-                disabled={isSubmitting}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                style={{ background: 'var(--gradient-primary)' }}
-              >
-                <span>Presensi Masuk</span>
-              </button>
+            {today?.check_in ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-lime-50 text-lime-700 border border-lime-200 shrink-0">
+                <CheckCircleIcon className="w-3.5 h-3.5 text-lime-600" /> Sudah Hadir
+              </span>
+            ) : isCheckInClosed ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200 shrink-0">
+                Waktu Berakhir
+              </span>
             ) : null}
           </div>
-        </div>
 
-        {/* Check-out Info Card */}
-        <div className="glass-card p-5 sm:p-6 rounded-3xl border border-border/80 space-y-3.5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-base">
-                📤
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-                  Check-out (Pulang)
-                </h3>
-                <p className="text-[11px] text-muted">Min. 8 jam kerja (s/d min. 15:00 WIB)</p>
-              </div>
+          {/* Status Box */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 font-semibold uppercase">Waktu Tercatat</p>
+              <p className="text-[18px] sm:text-[20px] font-bold font-mono text-zinc-900 leading-none">
+                {today?.check_in ? fmtTime(today.check_in, locationInfo?.timezone) : '--:--'}{' '}
+                <span className="text-[11px] sm:text-[12px] font-sans font-medium text-zinc-400">
+                  {today?.check_in ? (locationInfo?.timezoneLabel || 'WIB') : ''}
+                </span>
+              </p>
+              {today?.check_in ? (
+                <p className="text-[11px] font-semibold text-lime-700 pt-0.5 truncate">
+                  • {today.status === 'on_time' ? 'Tepat Waktu' : 'Terlambat'}
+                </p>
+              ) : isCheckInClosed ? (
+                <p className="text-[11px] font-semibold text-rose-600 pt-0.5 truncate">
+                  • Waktu Check-In Berakhir (Tidak Hadir)
+                </p>
+              ) : (
+                <p className="text-[11px] font-semibold text-zinc-400 pt-0.5 truncate">
+                  • {isLatePeriod ? 'Periode Terlambat (Maksimal 10:00 WIB)' : 'Batas Tepat Waktu: 08:30 WIB'}
+                </p>
+              )}
             </div>
 
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-              isWeekend && !checkedIn
-                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
-                : checkedOut
-                ? 'bg-blue-500/15 text-blue-500 border border-blue-500/20'
-                : canCheckOut
-                ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 animate-pulse'
-                : 'bg-surface-hover text-muted border border-border'
-            }`}>
-              {isWeekend && !checkedIn ? '🌴 Hari Libur' : checkedOut ? 'Selesai' : canCheckOut ? 'Siap Checkout' : 'Terkunci'}
-            </span>
+            {/* Thumbnail preview if photo exists */}
+            {today?.check_in_image && (
+              <button
+                onClick={() => setPreviewImage(today.check_in_image)}
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm ring-1 ring-zinc-200 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                title="Klik untuk lihat foto"
+              >
+                <img src={today.check_in_image} alt="Biometric Face" className="w-full h-full object-cover" />
+              </button>
+            )}
           </div>
 
-          <div className="pt-2 border-t border-border/50 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-            <div>
-              <div className="flex items-baseline gap-2">
-                <p className="text-2xl sm:text-3xl font-extrabold font-mono text-foreground">
-                  {isWeekend && !checkedIn ? '— : —' : fmtTime(today?.check_out ?? null, activeTimezone)}
-                </p>
-                {today?.checkout_target && (
-                  <span className="text-xs font-mono text-muted">
-                    (Target: {fmtTime(today.checkout_target, activeTimezone)})
-                  </span>
-                )}
+          {/* Action Button */}
+          {!today?.check_in ? (
+            canCheckIn ? (
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => setScannerMode('in')}
+                disabled={isSubmitting}
+                className="w-full py-3 sm:py-3.5 rounded-2xl bg-zinc-900 hover:bg-black text-white text-xs sm:text-[13px] font-bold tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CameraIcon className="w-4 h-4 text-lime-400" />
+                <span>CHECK IN {isLatePeriod ? '(TERLAMBAT)' : ''}</span>
+              </motion.button>
+            ) : (
+              <div className="w-full py-3 sm:py-3.5 px-4 rounded-2xl bg-zinc-100 border border-zinc-200 text-center space-y-0.5 cursor-not-allowed">
+                <span className="text-[11px] sm:text-[12px] font-bold text-zinc-400 block tracking-wider uppercase font-mono">
+                  CHECK IN DITUTUP
+                </span>
+                <span className="text-[10px] sm:text-[11px] font-medium text-zinc-400 block">
+                  {isCheckInClosed
+                    ? 'Batas waktu check-in (maksimal 10:00 pagi) telah berakhir.'
+                    : isBeforeOpening
+                    ? 'Check-in dibuka mulai pukul 05:00 pagi.'
+                    : isWeekend
+                    ? 'Hari ini libur akhir pekan (Sabtu & Minggu).'
+                    : 'Check-in tidak aktif.'}
+                </span>
               </div>
-              <p className="text-[11px] text-muted mt-1 leading-relaxed">
-                {isWeekend && !checkedIn
-                  ? 'Tidak ada jam kerja aktif di hari libur.'
-                  : checkedOut
-                  ? `Total durasi kerja hari ini: ${calcDuration(today?.check_in ?? null, today?.check_out ?? null)}`
-                  : checkedIn
-                  ? (canCheckOut
-                    ? 'Target 8 jam kerja telah terpenuhi. Silakan lakukan check-out!'
-                    : `Sisa waktu shift: ${remainingText || 'Menuju target checkout'}`)
-                  : 'Target checkout aktif otomatis setelah presensi masuk'}
+            )
+          ) : (
+            <div className="text-center py-2 text-xs font-semibold text-zinc-400 bg-zinc-50 rounded-xl">
+              ✓ Anda telah berhasil check-in untuk hari ini.
+            </div>
+          )}
+        </motion.div>
+
+        {/* ACTION CARD 2: CHECK OUT */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="bg-white rounded-[22px] sm:rounded-[28px] p-4 sm:p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] flex flex-col justify-between space-y-4 sm:space-y-5"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-lg sm:text-[20px] font-bold text-zinc-900 font-heading">
+                Check Out
+              </h3>
+              <p className="text-[11px] sm:text-[12px] text-zinc-400 mt-0.5">
+                Konfirmasi kepulangan dan evaluasi jam fokus yang telah selesai.
               </p>
             </div>
 
-            {/* Action Buttons for Check-out */}
-            {checkedIn && !checkedOut && (
-              canCheckOut ? (
-                <button
-                  onClick={() => setScannerMode('out')}
-                  disabled={isSubmitting}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-md shadow-emerald-500/25 bg-gradient-to-r from-emerald-600 to-teal-500 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span>Presensi Pulang</span>
-                </button>
-              ) : (
-                <button
-                  disabled
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-hover/80 border border-border text-muted cursor-not-allowed opacity-60 flex items-center justify-center gap-2 select-none"
-                  title={`Check-out terkunci sampai waktu target (${today?.checkout_target ? fmtTime(today.checkout_target, activeTimezone) : '15:00 WIB'})`}
-                >
-                  <svg className="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  <span>Check-out Terkunci</span>
-                </button>
-              )
+            {today?.check_out && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 shrink-0">
+                <CheckCircleIcon className="w-3.5 h-3.5 text-zinc-500" /> Sudah Check-Out
+              </span>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* ── 4 KPI Stats Banner ──────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-        <div className="glass-card p-3.5 sm:p-5 flex flex-col justify-between">
-          <div>
-            <p className="text-[11px] sm:text-xs font-bold text-muted mb-1 truncate">Kehadiran Bulan Ini</p>
-            <p className="text-lg sm:text-2xl font-extrabold text-foreground font-mono truncate">
-              {totalAttendedCount} <span className="text-xs font-normal text-muted">Hari</span>
-            </p>
-          </div>
-          <div className="mt-2">
-            <span className="inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-500 truncate max-w-full">
-              Tercatat Hadir
-            </span>
-          </div>
-        </div>
-
-        <div className="glass-card p-3.5 sm:p-5 flex flex-col justify-between">
-          <div>
-            <p className="text-[11px] sm:text-xs font-bold text-muted mb-1 truncate">Tidak Absen</p>
-            <p className="text-lg sm:text-2xl font-extrabold text-rose-500 font-mono truncate">
-              {absentCount} <span className="text-xs font-normal text-muted">Hari</span>
-            </p>
-          </div>
-          <div className="mt-2">
-            <span className="inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-500 truncate max-w-full">
-              Hari Kerja Alpa
-            </span>
-          </div>
-        </div>
-
-        <div className="glass-card p-3.5 sm:p-5 flex flex-col justify-between">
-          <div>
-            <p className="text-[11px] sm:text-xs font-bold text-muted mb-1 truncate">Tepat Waktu</p>
-            <p className="text-lg sm:text-2xl font-extrabold text-emerald-500 font-mono truncate">
-              {onTimePercentage}%
-            </p>
-          </div>
-          <div className="mt-2">
-            <span className="inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-500 truncate max-w-full">
-              {onTimeCount}x Tepat Waktu
-            </span>
-          </div>
-        </div>
-
-        <div className="glass-card p-3.5 sm:p-5 flex flex-col justify-between">
-          <div>
-            <p className="text-[11px] sm:text-xs font-bold text-muted mb-1 truncate">Terlambat</p>
-            <p className="text-lg sm:text-2xl font-extrabold text-amber-500 font-mono truncate">
-              {lateCount} <span className="text-xs font-normal text-muted">Kali</span>
-            </p>
-          </div>
-          <div className="mt-2">
-            <span className="inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-surface-hover text-muted truncate max-w-full">
-              Toleransi 08:30
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Attendance Log Table / Cards ────────────────────────── */}
-      <div className="glass-card p-4 sm:p-6 lg:p-7">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <div>
-            <h3 className="text-lg sm:text-xl font-bold tracking-tight text-foreground" style={{ fontFamily: 'var(--font-heading)' }}>
-              Riwayat Presensi
-            </h3>
-            <p className="text-muted text-xs mt-0.5">Catatan log kehadiran biometrik hari kerja (Senin–Jumat)</p>
-          </div>
-          <button
-            onClick={fetchData}
-            className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-surface-hover hover:bg-border/60 text-xs font-semibold text-muted hover:text-foreground border border-border/80 flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-            </svg>
-            <span>Segarkan</span>
-          </button>
-        </div>
-
-        {history.length > 0 ? (
-          <>
-            {/* ── Mobile View: Dedicated Responsive Cards (< md) ── */}
-            <div className="md:hidden space-y-3">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-3.5 rounded-2xl bg-surface/70 border border-border/70 space-y-3 shadow-xs"
-                >
-                  {/* Top Bar: Date + Status Badge */}
-                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-border/50">
-                    <span className="text-xs font-bold text-foreground">
-                      {fmtDate(item.date, activeTimezone)}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        item.status === 'on_time'
-                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                          : item.status === 'late'
-                          ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                          : item.status === 'absent'
-                          ? 'bg-rose-500/10 text-rose-500 border border-rose-500/25'
-                          : 'bg-surface-hover text-muted'
-                      }`}
-                    >
-                      {item.status === 'on_time' ? 'Tepat Waktu' : item.status === 'late' ? 'Terlambat' : item.status === 'absent' ? 'Tidak Absen' : '—'}
-                    </span>
-                  </div>
-
-                  {/* Body: Snapshot + Times Grid */}
-                  <div className="flex items-center gap-3">
-                    {/* Face thumbnail */}
-                    {item.status === 'absent' ? (
-                      <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex flex-col items-center justify-center text-rose-500 shrink-0">
-                        <span className="text-xs font-bold">❌</span>
-                        <span className="text-[9px] font-bold mt-0.5">Alpa</span>
-                      </div>
-                    ) : item.check_in_image ? (
-                      <button
-                        onClick={() => setPreviewImage(item.check_in_image)}
-                        className="w-12 h-12 rounded-xl overflow-hidden border border-border shadow-xs hover:scale-105 transition-transform shrink-0 relative group cursor-pointer"
-                        title="Klik untuk perbesar"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={item.check_in_image} alt="Face Snapshot" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-                          </svg>
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="w-12 h-12 rounded-xl bg-surface-hover border border-border/60 flex items-center justify-center text-muted text-xs shrink-0 font-medium">
-                        AI
-                      </div>
-                    )}
-
-                    {/* Check In / Out Details */}
-                    <div className="flex-1 grid grid-cols-3 gap-2 text-center bg-surface-hover/50 p-2 rounded-xl border border-border/40">
-                      <div>
-                        <span className="text-[10px] text-muted block uppercase font-semibold">Masuk</span>
-                        <span className="text-xs font-mono font-bold text-foreground">
-                          {item.status === 'absent' ? '—' : fmtTime(item.check_in, activeTimezone)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted block uppercase font-semibold">Pulang</span>
-                        <span className="text-xs font-mono font-bold text-foreground">
-                          {item.status === 'absent' ? '—' : fmtTime(item.check_out, activeTimezone)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted block uppercase font-semibold">Durasi</span>
-                        <span className="text-xs font-mono font-bold text-primary">
-                          {item.status === 'absent' ? '—' : calcDuration(item.check_in, item.check_out)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Location footer */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted pt-1">
-                    {item.status === 'absent' ? (
-                      <span className="text-rose-400 text-[11px]">Tidak ada catatan presensi pada hari kerja ini</span>
-                    ) : item.check_in_location ? (
-                      <>
-                        <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                        </svg>
-                        <span className="truncate">{item.check_in_location}</span>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
+          {/* Status Box */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 font-semibold uppercase">Waktu Selesai</p>
+              <p className="text-[18px] sm:text-[20px] font-bold font-mono text-zinc-900 leading-none">
+                {today?.check_out ? fmtTime(today.check_out, locationInfo?.timezone) : '--:--'}{' '}
+                <span className="text-[11px] sm:text-[12px] font-sans font-medium text-zinc-400">
+                  {today?.check_out ? (locationInfo?.timezoneLabel || 'WIB') : ''}
+                </span>
+              </p>
+              <p className="text-[11px] font-semibold text-zinc-500 pt-0.5 truncate">
+                Durasi Kerja: {today?.check_in && today?.check_out ? calcDuration(today.check_in, today.check_out) : 'Menunggu checkout'}
+              </p>
             </div>
 
-            {/* ── Desktop View: Structured 7-Column Table (>= md) ── */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border/60 text-muted font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-3">Tanggal</th>
-                    <th className="py-3 px-3">Wajah AI</th>
-                    <th className="py-3 px-3">Masuk</th>
-                    <th className="py-3 px-3">Pulang</th>
-                    <th className="py-3 px-3">Durasi</th>
-                    <th className="py-3 px-3">Lokasi GPS</th>
-                    <th className="py-3 px-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {history.map((item) => (
-                    <tr key={item.id} className="hover:bg-surface-hover/50 transition-colors">
-                      <td className="py-3.5 px-3 font-semibold text-foreground whitespace-nowrap">
-                        {fmtDate(item.date, activeTimezone)}
-                      </td>
-
-                      {/* Snapshot Thumbnail */}
-                      <td className="py-3.5 px-3">
-                        {item.status === 'absent' ? (
-                          <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 text-xs font-bold" title="Tidak Hadir">
-                            ❌
-                          </div>
-                        ) : item.check_in_image ? (
-                          <button
-                            onClick={() => setPreviewImage(item.check_in_image)}
-                            className="w-8 h-8 rounded-lg overflow-hidden border border-border hover:scale-110 transition-transform cursor-pointer"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={item.check_in_image} alt="Face Snapshot" className="w-full h-full object-cover" />
-                          </button>
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-surface-hover flex items-center justify-center text-muted text-[10px]">
-                            —
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-3 font-mono font-medium text-foreground whitespace-nowrap">
-                        {item.status === 'absent' ? '—' : fmtTime(item.check_in, activeTimezone)}
-                      </td>
-
-                      <td className="py-3.5 px-3 font-mono font-medium text-foreground whitespace-nowrap">
-                        {item.status === 'absent' ? '—' : fmtTime(item.check_out, activeTimezone)}
-                      </td>
-
-                      <td className="py-3.5 px-3 font-mono text-muted whitespace-nowrap">
-                        {item.status === 'absent' ? '—' : calcDuration(item.check_in, item.check_out)}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-muted max-w-[200px] truncate" title={item.check_in_location || ''}>
-                        {item.status === 'absent' ? '—' : item.check_in_location || '—'}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          item.status === 'on_time'
-                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                            : item.status === 'late'
-                            ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                            : item.status === 'absent'
-                            ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
-                            : 'bg-surface-hover text-muted'
-                        }`}>
-                          {item.status === 'on_time'
-                            ? 'Tepat Waktu'
-                            : item.status === 'late'
-                            ? 'Terlambat'
-                            : item.status === 'absent'
-                            ? 'Tidak Absen'
-                            : '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <div className="py-12 text-center text-muted text-xs flex flex-col items-center gap-2">
-            <svg className="w-8 h-8 text-muted/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Belum ada rekaman presensi. Lakukan check-in pertama Anda hari ini!</span>
-          </div>
-        )}
-      </div>
-
-      {/* ── Face Scanner Modal ──────────────────────────────────── */}
-      {scannerMode && (
-        <FaceScanner
-          onFaceDetected={handleFaceDetected}
-          onCancel={() => setScannerMode(null)}
-        />
-      )}
-
-      {/* ── Photo Lightbox Modal ────────────────────────────────── */}
-      <AnimatePresence>
-        {previewImage && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background/80 backdrop-blur-md"
-              onClick={() => setPreviewImage(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative max-w-sm w-full bg-card rounded-3xl p-5 border border-border shadow-2xl z-10"
-            >
-              <h4 className="text-sm font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-heading)' }}>
-                Tangkapan Biometrik Wajah
-              </h4>
-              <div className="w-full aspect-square rounded-2xl overflow-hidden bg-black mb-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewImage} alt="Preview Wajah" className="w-full h-full object-cover" />
-              </div>
+            {today?.check_out_image && (
               <button
-                onClick={() => setPreviewImage(null)}
-                className="w-full h-10 rounded-xl bg-surface-hover text-xs font-bold text-foreground hover:bg-border transition-colors cursor-pointer"
+                onClick={() => setPreviewImage(today.check_out_image)}
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm ring-1 ring-zinc-200 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                title="Klik untuk lihat foto"
               >
-                Tutup
+                <img src={today.check_out_image} alt="Biometric Face" className="w-full h-full object-cover" />
               </button>
+            )}
+          </div>
+
+          {/* Action Button */}
+          {!today?.check_out ? (
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => {
+                if (!today?.check_in) {
+                  toast.error('Anda belum check-in hari ini!');
+                  return;
+                }
+                setScannerMode('out');
+              }}
+              disabled={isSubmitting || !today?.check_in}
+              className={`w-full py-3 sm:py-3.5 rounded-2xl text-xs sm:text-[13px] font-bold tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                today?.check_in
+                  ? 'bg-zinc-900 hover:bg-black text-white shadow-zinc-900/10'
+                  : 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none'
+              }`}
+            >
+              <ClockIcon className="w-4 h-4" />
+              <span>{today?.check_in ? 'CHECK OUT' : 'CHECK OUT'}</span>
+            </motion.button>
+          ) : (
+            <div className="text-center py-2 text-xs font-semibold text-zinc-400 bg-zinc-50 rounded-xl">
+              ✓ Sesi kerja hari ini telah selesai. Selamat beristirahat!
+            </div>
+          )}
+        </motion.div>
+
+      </div>
+
+      {/* ── ATTENDANCE LOG HISTORY (BENTO TABLE) ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="bg-white rounded-[22px] sm:rounded-[28px] p-4 sm:p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-base font-bold text-zinc-900 font-heading">
+              Riwayat Kehadiran & Kedisiplinan
+            </h3>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Log harian hari kerja (Senin – Jumat) yang terverifikasi biometrik
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-zinc-400 font-medium sm:hidden">
+              ← Geser tabel ke samping →
+            </span>
+            <span className="text-xs font-bold text-zinc-600 font-mono bg-zinc-100 px-3 py-1 rounded-full shrink-0">
+              {history.length} Catatan
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[12px] min-w-[640px]">
+            <thead>
+              <tr className="border-b border-zinc-100 text-zinc-400 font-semibold text-[11px] bg-zinc-50/50">
+                <th className="py-3 px-3 font-medium min-w-[150px]">Hari & Tanggal</th>
+                <th className="py-3 px-3 font-medium w-24">Check-In</th>
+                <th className="py-3 px-3 font-medium w-24">Check-Out</th>
+                <th className="py-3 px-3 font-medium w-28">Durasi Fokus</th>
+                <th className="py-3 px-3 font-medium min-w-[140px]">Lokasi GPS</th>
+                <th className="py-3 px-3 font-medium w-20 text-center">Biometrik</th>
+                <th className="py-3 px-3 font-medium text-right w-28">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100/70">
+              {history.map((record) => {
+                const dateLabel = new Date(record.date + 'T00:00:00').toLocaleDateString('id-ID', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                });
+
+                const isToday = record.date === todayDateString(locationInfo?.timezone);
+
+                return (
+                  <tr key={record.id} className="hover:bg-zinc-50/70 transition-colors">
+                    <td className="py-3 px-3 font-semibold text-zinc-800">
+                      {dateLabel}{' '}
+                      {isToday && (
+                        <span className="ml-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-lime-50 text-lime-700 border border-lime-200 whitespace-nowrap">
+                          Hari Ini
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 font-mono font-semibold text-zinc-700 whitespace-nowrap">
+                      {fmtTime(record.check_in, record.check_in_timezone || locationInfo?.timezone)}
+                    </td>
+                    <td className="py-3 px-3 font-mono text-zinc-500 whitespace-nowrap">
+                      {fmtTime(record.check_out, record.check_in_timezone || locationInfo?.timezone)}
+                    </td>
+                    <td className="py-3 px-3 font-medium text-zinc-600 whitespace-nowrap">
+                      {calcDuration(record.check_in, record.check_out)}
+                    </td>
+                    <td className="py-3 px-3 text-zinc-500 font-medium truncate max-w-[180px]">
+                      {record.check_in_location || '—'}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {record.check_in_image ? (
+                        <button
+                          onClick={() => setPreviewImage(record.check_in_image)}
+                          className="w-7 h-7 mx-auto rounded-lg overflow-hidden border border-zinc-200 hover:ring-2 hover:ring-lime-500 transition-all cursor-pointer block"
+                          title="Lihat foto scan wajah"
+                        >
+                          <img src={record.check_in_image} alt="Scan Wajah" className="w-full h-full object-cover" />
+                        </button>
+                      ) : (
+                        <span className="text-zinc-300">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {record.status === 'on_time' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-lime-50 text-lime-700 border border-lime-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-lime-500" />
+                          Tepat Waktu
+                        </span>
+                      ) : record.status === 'late' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          Terlambat
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          isToday
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-zinc-100 text-zinc-500 border-zinc-200'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isToday ? 'bg-amber-500 animate-pulse' : 'bg-zinc-400'}`} />
+                          {isToday ? 'Belum Check-In' : 'Tidak Hadir'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+
+      {/* ── MODAL: FACE SCANNER ── */}
+      <AnimatePresence>
+        {scannerMode && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-[24px] sm:rounded-[32px] p-4 sm:p-6 max-w-lg w-full shadow-2xl border border-zinc-200 space-y-4 max-h-[92vh] overflow-y-auto relative"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-zinc-900 font-heading">
+                    {scannerMode === 'in' ? 'Biometric Face Check-In' : 'Biometric Face Check-Out'}
+                  </h3>
+                  <p className="text-[10px] sm:text-[11px] text-zinc-400 mt-0.5">
+                    Posisikan wajah Anda tepat di dalam lingkaran scanner
+                  </p>
+                </div>
+                <button
+                  onClick={() => setScannerMode(null)}
+                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 transition-colors cursor-pointer shrink-0"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* The Face Scanner component */}
+              <div className="rounded-2xl overflow-hidden bg-zinc-900">
+                <FaceScanner
+                  onFaceDetected={(_descriptor, imageBase64) => {
+                    if (scannerMode === 'in') {
+                      handleCheckIn(imageBase64);
+                    } else if (scannerMode === 'out') {
+                      handleCheckOut(imageBase64);
+                    }
+                  }}
+                  onCancel={() => setScannerMode(null)}
+                />
+              </div>
+
+              <div className="text-center pt-1">
+                <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">
+                  Sistem otomatis mendeteksi wajah dan memverifikasi kehadiran.
+                </p>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── MODAL: PHOTO PREVIEW ── */}
+      <AnimatePresence>
+        {previewImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setPreviewImage(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[28px] p-5 max-w-sm w-full shadow-2xl border border-zinc-200 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-zinc-900 font-heading">Foto Verifikasi Wajah</h4>
+                <button onClick={() => setPreviewImage(null)} className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500">
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="rounded-2xl overflow-hidden border border-zinc-200 aspect-square">
+                <img src={previewImage} alt="Preview Wajah Biometrik" className="w-full h-full object-cover" />
+              </div>
+              <p className="text-center text-[11px] text-zinc-400 font-medium">
+                Terekam saat proses check-in / check-out presensi.
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
