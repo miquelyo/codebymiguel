@@ -10,13 +10,18 @@ interface FaceScannerProps {
   subtitle?: string;
 }
 
-/* ─── Biometric Quality Analysis Helpers ───────────────────────── */
+/* ─── Biometric Diagnostic State ─────────────────────────────── */
 
-interface QualityAnalysisResult {
-  passed: boolean;
-  message: string;
-  indicator: 'neutral' | 'warning' | 'error' | 'success';
+interface DiagnosticState {
+  lighting: 'good' | 'dark' | 'bright' | 'contrast';
+  accessories: 'clean' | 'glasses' | 'eyes_covered';
+  pose: 'aligned' | 'tilted' | 'turned' | 'distance' | 'offcenter';
+  stillness: 'still' | 'moving';
+  summaryMessage: string;
+  isReadyForCapture: boolean;
 }
+
+/* ─── Biometric Quality Analysis Helpers ───────────────────────── */
 
 function analyzeFaceLighting(
   video: HTMLVideoElement,
@@ -57,9 +62,9 @@ function analyzeFaceLighting(
 
     const count = imgData.length / 4;
     const avgLum = totalLum / count;
-    const isTooDark = avgLum < 65; // Cahaya terlalu redup / gelap
-    const isTooBright = avgLum > 225; // Overexposed / silau
-    const isLowContrast = maxLum - minLum < 38; // Silhouette / backlight
+    const isTooDark = avgLum < 60; // Cahaya terlalu redup / gelap
+    const isTooBright = avgLum > 230; // Overexposed / silau
+    const isLowContrast = maxLum - minLum < 34; // Silhouette / backlight
 
     return { isTooDark, isTooBright, isLowContrast, avgLum };
   } catch {
@@ -67,6 +72,19 @@ function analyzeFaceLighting(
   }
 }
 
+/**
+ * Universal Multi-Scale Glasses & Accessories Detector
+ * Accurately detects glasses (thick frames, thin metal frames, wireframes, sunglasses)
+ * at ANY distance (close, medium, or far) on both desktop webcams and mobile devices.
+ *
+ * Checks:
+ * 1. Eye Openness & Occlusion (EAR)
+ * 2. Entire Eye-Band Dark Frame Pixel Ratio
+ * 3. Nasal Bridge Frame Bar & Gradient (Between eyes 39 & 42)
+ * 4. Upper Eyeglass Rim (In gap between eyebrows and upper eyelids)
+ * 5. Lower Eyeglass Rim (Below eyes / Upper cheek)
+ * 6. Eye Band vs Cheek Relative Edge Variance
+ */
 function analyzeGlassesAndAccessories(
   video: HTMLVideoElement,
   landmarks: faceapi.FaceLandmarks68
@@ -75,42 +93,109 @@ function analyzeGlassesAndAccessories(
     const pts = landmarks.positions;
     if (!pts || pts.length < 68) return { hasGlassesOrObstruction: false };
 
-    // 1. Eye Openness & Occlusion Check (EAR: Eye Aspect Ratio)
-    // Left eye: 36..41
+    // Scale invariant base: inter-ocular distance (outer left eye 36 to outer right eye 45)
+    const eyeDist = Math.hypot(pts[45].x - pts[36].x, pts[45].y - pts[36].y);
+    if (eyeDist < 15 || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      return { hasGlassesOrObstruction: false };
+    }
+
+    // ── 1. Eye Openness & Occlusion Check (EAR: Eye Aspect Ratio) ──
     const lH1 = Math.hypot(pts[37].x - pts[41].x, pts[37].y - pts[41].y);
     const lH2 = Math.hypot(pts[38].x - pts[40].x, pts[38].y - pts[40].y);
     const lW = Math.hypot(pts[36].x - pts[39].x, pts[36].y - pts[39].y);
     const leftEAR = (lH1 + lH2) / (2 * Math.max(1, lW));
 
-    // Right eye: 42..47
     const rH1 = Math.hypot(pts[43].x - pts[47].x, pts[43].y - pts[47].y);
     const rH2 = Math.hypot(pts[44].x - pts[46].x, pts[44].y - pts[46].y);
     const rW = Math.hypot(pts[42].x - pts[45].x, pts[42].y - pts[45].y);
     const rightEAR = (rH1 + rH2) / (2 * Math.max(1, rW));
 
-    // If eye ratio is too small, eyes are closed, covered by dark sunglasses or hair
-    if (leftEAR < 0.15 || rightEAR < 0.15) {
+    if (leftEAR < 0.14 || rightEAR < 0.14) {
       return {
         hasGlassesOrObstruction: true,
-        reason: 'Mata tidak terlihat jelas. Buka mata Anda & jangan tutupi wajah.',
+        reason: 'Mata tidak terlihat jelas / terpejam. Buka mata Anda & jangan tutupi wajah.',
       };
     }
 
-    // 2. Optical Glasses Frame Bridge Detection across the Nose Bridge
-    // Region between inner corners of the eyes: landmark 39 (left) to 42 (right) & nose bridge 27
+    // ── 2. Full Eye-Band Dark Frame Pixel Ratio & Global Edge Density ──
+    // Box spanning from left temple to right temple, eyebrow to upper cheek
+    const bandX = Math.max(0, pts[36].x - 0.22 * eyeDist);
+    const bandY = Math.max(0, Math.min(pts[19].y, pts[24].y) - 0.08 * eyeDist);
+    const bandW = Math.min(video.videoWidth - bandX, (pts[45].x - pts[36].x) + 0.44 * eyeDist);
+    const bandH = Math.min(
+      video.videoHeight - bandY,
+      Math.max(pts[41].y, pts[46].y) - bandY + 0.24 * eyeDist
+    );
+
+    if (bandW > 20 && bandH > 10) {
+      const bandCanvas = document.createElement('canvas');
+      bandCanvas.width = 64;
+      bandCanvas.height = 32;
+      const bandCtx = bandCanvas.getContext('2d', { willReadFrequently: true });
+
+      if (bandCtx) {
+        bandCtx.drawImage(video, bandX, bandY, bandW, bandH, 0, 0, 64, 32);
+        const bData = bandCtx.getImageData(0, 0, 64, 32).data;
+
+        let darkPixels = 0;
+        let edgePixels = 0;
+        let lumSum = 0;
+        let lumArray: number[] = [];
+
+        for (let y = 1; y < 31; y++) {
+          for (let x = 1; x < 63; x++) {
+            const idx = (y * 64 + x) * 4;
+            const lum = 0.299 * bData[idx] + 0.587 * bData[idx + 1] + 0.114 * bData[idx + 2];
+            lumArray.push(lum);
+            lumSum += lum;
+
+            // Dark frame pixels (plastic, tortoise, dark metal frames)
+            if (lum < 84) darkPixels++;
+
+            const idxL = (y * 64 + (x - 1)) * 4;
+            const idxR = (y * 64 + (x + 1)) * 4;
+            const idxU = ((y - 1) * 64 + x) * 4;
+            const idxD = ((y + 1) * 64 + x) * 4;
+            const lumL = 0.299 * bData[idxL] + 0.587 * bData[idxL + 1] + 0.114 * bData[idxL + 2];
+            const lumR = 0.299 * bData[idxR] + 0.587 * bData[idxR + 1] + 0.114 * bData[idxR + 2];
+            const lumU = 0.299 * bData[idxU] + 0.587 * bData[idxU + 1] + 0.114 * bData[idxU + 2];
+            const lumD = 0.299 * bData[idxD] + 0.587 * bData[idxD + 1] + 0.114 * bData[idxD + 2];
+
+            const grad = Math.abs(lumR - lumL) + Math.abs(lumD - lumU);
+            if (grad > 26) edgePixels++;
+          }
+        }
+
+        const totalSampled = lumArray.length;
+        const darkRatio = darkPixels / totalSampled;
+        const edgeRatio = edgePixels / totalSampled;
+
+        // Dark glasses frame detection:
+        // On bare skin, eyebrows & pupils only occupy ~5-7% of this large band.
+        // Thick glasses frames push dark pixels to > 11.5% and edge density to > 7.5%!
+        if (darkRatio > 0.115 && edgeRatio > 0.072) {
+          return {
+            hasGlassesOrObstruction: true,
+            reason: 'Kacamata terdeteksi di wajah! Harap lepas kacamata Anda.',
+          };
+        }
+      }
+    }
+
+    // ── 3. Nasal Bridge Frame Analysis (Between Inner Corners 39 & 42) ──
     const p39 = pts[39];
     const p42 = pts[42];
     const p27 = pts[27];
 
-    const bridgeW = Math.abs(p42.x - p39.x);
-    const bridgeH = Math.max(12, Math.abs(pts[28].y - p27.y) * 2.2);
     const bridgeX = Math.min(p39.x, p42.x);
-    const bridgeY = p27.y - 4;
+    const bridgeW = Math.abs(p42.x - p39.x);
+    const bridgeY = p27.y - 0.15 * eyeDist;
+    const bridgeH = Math.max(10, 0.32 * eyeDist);
 
-    if (bridgeW > 10 && bridgeH > 8 && video.videoWidth > 0) {
+    if (bridgeW > 6 && bridgeH > 6) {
       const bCanvas = document.createElement('canvas');
-      bCanvas.width = 28;
-      bCanvas.height = 14;
+      bCanvas.width = 32;
+      bCanvas.height = 18;
       const bCtx = bCanvas.getContext('2d', { willReadFrequently: true });
 
       if (bCtx) {
@@ -122,95 +207,175 @@ function analyzeGlassesAndAccessories(
           bridgeH,
           0,
           0,
-          28,
-          14
+          32,
+          18
         );
-        const bPixels = bCtx.getImageData(0, 0, 28, 14).data;
+        const bPixels = bCtx.getImageData(0, 0, 32, 18).data;
 
         let edgeCount = 0;
+        let sumLum = 0;
+        let lumValues: number[] = [];
         let minLum = 255;
         let maxLum = 0;
 
-        for (let y = 1; y < 13; y++) {
-          for (let x = 1; x < 27; x++) {
-            const idx = (y * 28 + x) * 4;
+        for (let y = 1; y < 17; y++) {
+          for (let x = 1; x < 31; x++) {
+            const idx = (y * 32 + x) * 4;
             const lum = 0.299 * bPixels[idx] + 0.587 * bPixels[idx + 1] + 0.114 * bPixels[idx + 2];
+            lumValues.push(lum);
+            sumLum += lum;
             if (lum < minLum) minLum = lum;
             if (lum > maxLum) maxLum = lum;
 
-            const idxL = (y * 28 + (x - 1)) * 4;
-            const idxR = (y * 28 + (x + 1)) * 4;
-            const idxU = ((y - 1) * 28 + x) * 4;
-            const idxD = ((y + 1) * 28 + x) * 4;
+            const idxL = (y * 32 + (x - 1)) * 4;
+            const idxR = (y * 32 + (x + 1)) * 4;
+            const idxU = ((y - 1) * 32 + x) * 4;
+            const idxD = ((y + 1) * 32 + x) * 4;
             const lumL = 0.299 * bPixels[idxL] + 0.587 * bPixels[idxL + 1] + 0.114 * bPixels[idxL + 2];
             const lumR = 0.299 * bPixels[idxR] + 0.587 * bPixels[idxR + 1] + 0.114 * bPixels[idxR + 2];
             const lumU = 0.299 * bPixels[idxU] + 0.587 * bPixels[idxU + 1] + 0.114 * bPixels[idxU + 2];
             const lumD = 0.299 * bPixels[idxD] + 0.587 * bPixels[idxD + 1] + 0.114 * bPixels[idxD + 2];
 
             const grad = Math.abs(lumR - lumL) + Math.abs(lumD - lumU);
-            if (grad > 52) edgeCount++;
+            if (grad > 26) edgeCount++;
           }
         }
 
-        const edgeDensity = edgeCount / (26 * 12);
+        const count = lumValues.length;
+        const avgLum = sumLum / count;
+        let variance = 0;
+        for (const l of lumValues) {
+          variance += Math.pow(l - avgLum, 2);
+        }
+        const stdDev = Math.sqrt(variance / count);
+        const edgeRatio = edgeCount / count;
         const contrast = maxLum - minLum;
 
-        // Distinct frame bridge detected across the nasal bridge
-        if (edgeDensity > 0.14 && contrast > 80) {
+        // Bridge frame detected:
+        if ((edgeRatio > 0.065 && contrast > 30) || stdDev > 15.0) {
           return {
             hasGlassesOrObstruction: true,
-            reason: 'Kacamata / aksesoris terdeteksi. Harap lepas kacamata Anda!',
+            reason: 'Kacamata / aksesoris terdeteksi di hidung. Harap lepas kacamata!',
           };
         }
       }
     }
 
-    // 3. Eyeglass Frame Edge Density around the Left Eye Socket
-    // Region from eyebrow 19 down to below eye 41
-    const eyeBoxW = Math.abs(pts[39].x - pts[36].x) * 1.35;
-    const eyeBoxH = Math.abs(pts[41].y - pts[19].y) * 1.25;
-    const eyeBoxX = pts[36].x - eyeBoxW * 0.15;
-    const eyeBoxY = pts[19].y;
+    // ── 4. Upper Eyeglass Rim (Gap between Eyebrows and Eyelids) ──
+    const leftGapY = (pts[19].y + pts[37].y) / 2;
+    const leftGapH = Math.max(8, Math.abs(pts[37].y - pts[19].y) * 1.3);
+    const leftGapW = Math.abs(pts[39].x - pts[36].x) * 1.05;
+    const leftGapX = Math.min(pts[36].x, pts[39].x);
 
-    if (eyeBoxW > 14 && eyeBoxH > 14) {
-      const eCanvas = document.createElement('canvas');
-      eCanvas.width = 28;
-      eCanvas.height = 28;
-      const eCtx = eCanvas.getContext('2d', { willReadFrequently: true });
+    const rightGapY = (pts[24].y + pts[44].y) / 2;
+    const rightGapH = Math.max(8, Math.abs(pts[44].y - pts[24].y) * 1.3);
+    const rightGapW = Math.abs(pts[45].x - pts[42].x) * 1.05;
+    const rightGapX = Math.min(pts[42].x, pts[45].x);
 
-      if (eCtx) {
-        eCtx.drawImage(
+    if (leftGapW > 8 && rightGapW > 8) {
+      const gCanvas = document.createElement('canvas');
+      gCanvas.width = 48;
+      gCanvas.height = 14;
+      const gCtx = gCanvas.getContext('2d', { willReadFrequently: true });
+
+      if (gCtx) {
+        gCtx.drawImage(
           video,
-          Math.max(0, eyeBoxX),
-          Math.max(0, eyeBoxY),
-          eyeBoxW,
-          eyeBoxH,
+          Math.max(0, leftGapX),
+          Math.max(0, leftGapY - leftGapH / 2),
+          leftGapW,
+          leftGapH,
           0,
           0,
-          28,
-          28
+          24,
+          14
         );
-        const eData = eCtx.getImageData(0, 0, 28, 28).data;
-        let sharpEdges = 0;
+        gCtx.drawImage(
+          video,
+          Math.max(0, rightGapX),
+          Math.max(0, rightGapY - rightGapH / 2),
+          rightGapW,
+          rightGapH,
+          24,
+          0,
+          24,
+          14
+        );
 
-        for (let y = 1; y < 27; y++) {
-          for (let x = 1; x < 27; x++) {
-            const idx = (y * 28 + x) * 4;
-            const idxR = (y * 28 + (x + 1)) * 4;
-            const idxD = ((y + 1) * 28 + x) * 4;
-            const lum = 0.299 * eData[idx] + 0.587 * eData[idx + 1] + 0.114 * eData[idx + 2];
-            const lumR = 0.299 * eData[idxR] + 0.587 * eData[idxR + 1] + 0.114 * eData[idxR + 2];
-            const lumD = 0.299 * eData[idxD] + 0.587 * eData[idxD + 1] + 0.114 * eData[idxD + 2];
-            const grad = Math.abs(lumR - lum) + Math.abs(lumD - lum);
-            if (grad > 56) sharpEdges++;
+        const gPixels = gCtx.getImageData(0, 0, 48, 14).data;
+        let horizontalEdges = 0;
+
+        for (let y = 1; y < 13; y++) {
+          for (let x = 1; x < 47; x++) {
+            const idxU = ((y - 1) * 48 + x) * 4;
+            const idxD = ((y + 1) * 48 + x) * 4;
+            const lumU = 0.299 * gPixels[idxU] + 0.587 * gPixels[idxU + 1] + 0.114 * gPixels[idxU + 2];
+            const lumD = 0.299 * gPixels[idxD] + 0.587 * gPixels[idxD + 1] + 0.114 * gPixels[idxD + 2];
+            if (Math.abs(lumD - lumU) > 28) {
+              horizontalEdges++;
+            }
           }
         }
 
-        const eyeEdgeDensity = sharpEdges / (26 * 26);
-        if (eyeEdgeDensity > 0.22) {
+        const rimEdgeRatio = horizontalEdges / (46 * 12);
+        if (rimEdgeRatio > 0.075) {
           return {
             hasGlassesOrObstruction: true,
-            reason: 'Bingkai kacamata terdeteksi di sekitar mata. Harap lepas kacamata!',
+            reason: 'Bingkai kacamata terdeteksi di atas mata. Harap lepas kacamata!',
+          };
+        }
+      }
+    }
+
+    // ── 5. Lower Eyeglass Rim (Below Eyes / Cheekbone Rim) ──
+    const lowerRimY = Math.max(pts[40].y, pts[41].y) + 2;
+    const lowerRimH = Math.max(8, 0.20 * eyeDist);
+    const lowerRimW = Math.abs(pts[39].x - pts[36].x) * 1.15;
+    const lowerRimX = pts[36].x - 0.05 * eyeDist;
+
+    if (lowerRimW > 8 && lowerRimH > 6) {
+      const lCanvas = document.createElement('canvas');
+      lCanvas.width = 28;
+      lCanvas.height = 14;
+      const lCtx = lCanvas.getContext('2d', { willReadFrequently: true });
+
+      if (lCtx) {
+        lCtx.drawImage(
+          video,
+          Math.max(0, lowerRimX),
+          Math.max(0, lowerRimY),
+          lowerRimW,
+          lowerRimH,
+          0,
+          0,
+          28,
+          14
+        );
+        const lPixels = lCtx.getImageData(0, 0, 28, 14).data;
+        let lowerEdges = 0;
+        let minLum = 255;
+        let maxLum = 0;
+
+        for (let y = 1; y < 13; y++) {
+          for (let x = 1; x < 27; x++) {
+            const idx = (y * 28 + x) * 4;
+            const lum = 0.299 * lPixels[idx] + 0.587 * lPixels[idx + 1] + 0.114 * lPixels[idx + 2];
+            if (lum < minLum) minLum = lum;
+            if (lum > maxLum) maxLum = lum;
+
+            const idxU = ((y - 1) * 28 + x) * 4;
+            const idxD = ((y + 1) * 28 + x) * 4;
+            const lumU = 0.299 * lPixels[idxU] + 0.587 * lPixels[idxU + 1] + 0.114 * lPixels[idxU + 2];
+            const lumD = 0.299 * lPixels[idxD] + 0.587 * lPixels[idxD + 1] + 0.114 * lPixels[idxD + 2];
+            if (Math.abs(lumD - lumU) > 28) lowerEdges++;
+          }
+        }
+
+        const lowerEdgeRatio = lowerEdges / (26 * 12);
+        if (lowerEdgeRatio > 0.085 && maxLum - minLum > 35) {
+          return {
+            hasGlassesOrObstruction: true,
+            reason: 'Bingkai kacamata terdeteksi di pipi. Harap lepas kacamata!',
           };
         }
       }
@@ -236,9 +401,17 @@ export default function FaceScanner({
   const isMountedRef = useRef(true);
 
   const [isModelLoaded, setIsModelLoaded] = useState(false);
-  const [statusText, setStatusText] = useState('Mengaktifkan kamera & sensor biometrik...');
-  const [statusType, setStatusType] = useState<'neutral' | 'warning' | 'error' | 'success'>('neutral');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+
+  // Diagnostics HUD Checklist
+  const [diagnostics, setDiagnostics] = useState<DiagnosticState>({
+    lighting: 'good',
+    accessories: 'clean',
+    pose: 'aligned',
+    stillness: 'still',
+    summaryMessage: 'Mengaktifkan kamera & sensor biometrik...',
+    isReadyForCapture: false,
+  });
 
   // Rotation: saved in localStorage, default 0°
   const [rotation, setRotation] = useState<number>(() => {
@@ -320,7 +493,7 @@ export default function FaceScanner({
       ctx.drawImage(video, -vW / 2, -vH / 2, vW, vH);
       ctx.restore();
     }
-    return canvas.toDataURL('image/jpeg', 0.88);
+    return canvas.toDataURL('image/jpeg', 0.9);
   };
 
   // ─── Ultra-Fast Biometric Detection Loop ──────────────────────
@@ -328,11 +501,12 @@ export default function FaceScanner({
   const startDetectionLoop = useCallback(() => {
     stopDetectionLoop();
 
-    let validFrames = 0;
-    const targetFrames = 4; // ~600ms of stable, verified frames
+    let stillFrames = 0;
+    const targetStillFrames = 10; // ~1.4 seconds of sustained stillness required!
     let lastCheckTime = 0;
+    let prevCenter = { x: 0, y: 0 };
+    let prevWidth = 0;
 
-    // Lightweight detector options (224 is ultra fast on mobile, executes in <15ms)
     const detectorOptions = new faceapi.TinyFaceDetectorOptions({
       inputSize: 224,
       scoreThreshold: 0.5,
@@ -361,7 +535,6 @@ export default function FaceScanner({
           try {
             isDetectingRef.current = true;
 
-            // Only detect face + landmarks (no heavy 6MB ResNet recognition!)
             const detections = await faceapi
               .detectSingleFace(video, detectorOptions)
               .withFaceLandmarks(true);
@@ -377,10 +550,18 @@ export default function FaceScanner({
             }
 
             if (!detections) {
-              validFrames = 0;
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Posisikan wajah Anda di dalam bingkai');
-              setStatusType('neutral');
+              prevCenter = { x: 0, y: 0 };
+              prevWidth = 0;
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'offcenter',
+                stillness: 'still',
+                summaryMessage: 'Posisikan wajah Anda tepat di dalam bingkai',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
@@ -391,10 +572,16 @@ export default function FaceScanner({
 
             // 1. Confidence check
             if (score < 0.5) {
-              validFrames = 0;
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Wajah kurang jelas. Mohon hadapkan langsung ke kamera.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'distance',
+                stillness: 'still',
+                summaryMessage: 'Wajah kurang jelas. Tatap langsung ke lensa kamera.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
@@ -403,59 +590,68 @@ export default function FaceScanner({
             // 2. Lighting & Brightness Analysis
             const lighting = analyzeFaceLighting(video, box);
             if (lighting.isTooDark) {
-              validFrames = 0;
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Pencahayaan terlalu gelap! Harap pindah ke tempat yang lebih terang.');
-              setStatusType('error');
+              setDiagnostics({
+                lighting: 'dark',
+                accessories: 'clean',
+                pose: 'aligned',
+                stillness: 'still',
+                summaryMessage: 'Pencahayaan terlalu gelap! Harap pindah ke tempat lebih terang.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
             if (lighting.isTooBright) {
-              validFrames = 0;
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Cahaya terlalu silau / backlight. Hindari sumber cahaya langsung.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'bright',
+                accessories: 'clean',
+                pose: 'aligned',
+                stillness: 'still',
+                summaryMessage: 'Cahaya terlalu silau / backlight! Hindari cahaya langsung.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
             if (lighting.isLowContrast) {
-              validFrames = 0;
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Wajah kurang jelas / tertutup bayangan. Sesuaikan pencahayaan.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'contrast',
+                accessories: 'clean',
+                pose: 'aligned',
+                stillness: 'still',
+                summaryMessage: 'Wajah tertutup bayangan / siluet. Sesuaikan pencahayaan.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
 
-            // 3. Glasses & Accessories Obstruction Check
-            const glassesCheck = analyzeGlassesAndAccessories(video, detections.landmarks);
-            if (glassesCheck.hasGlassesOrObstruction) {
-              validFrames = 0;
-              setValidProgress(0);
-              setStatusText(
-                glassesCheck.reason ||
-                  'Kacamata / aksesoris terdeteksi! Harap lepas kacamata & aksesoris wajah.'
-              );
-              setStatusType('error');
-              isDetectingRef.current = false;
-              animationFrameRef.current = requestAnimationFrame(loop);
-              return;
-            }
-
-            // 4. Head Pose & Alignment Check (Pitch, Yaw, Tilt)
+            // 3. Head Pose: Tilt & Yaw Alignment
             const pts = detections.landmarks.positions;
             const pLeftEye = pts[36];
             const pRightEye = pts[45];
             const eyeSlope = Math.abs((pRightEye.y - pLeftEye.y) / Math.max(1, pRightEye.x - pLeftEye.x));
 
-            if (eyeSlope > 0.18) {
-              validFrames = 0;
+            if (eyeSlope > 0.16) {
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Posisikan kepala tegak lurus (tidak miring).');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'tilted',
+                stillness: 'still',
+                summaryMessage: 'Posisikan kepala tegak lurus (tidak miring).',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
@@ -470,71 +666,169 @@ export default function FaceScanner({
             const yawRatio = distLeft / Math.max(1, distRight);
 
             if (yawRatio < 0.58 || yawRatio > 1.72) {
-              validFrames = 0;
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Hadapkan wajah lurus ke depan kamera.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'turned',
+                stillness: 'still',
+                summaryMessage: 'Hadapkan wajah lurus ke depan kamera.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
 
-            // 5. Distance and Centering
-            const faceWidthRatio = box.width / video.videoWidth;
-            if (faceWidthRatio < 0.22) {
-              validFrames = 0;
+            // 4. Strict Distance & Oval Guide Fitting (Fix for Sitting Far Away!)
+            // In a square viewport with object-fit: cover, the visible area is min(videoWidth, videoHeight).
+            const visibleDim = Math.min(video.videoWidth, video.videoHeight);
+            const faceRatio = box.width / visibleDim;
+
+            // The oval guide covers ~55% - 70% of the visible container.
+            // Face MUST fill between 38% and 78% of the visible frame!
+            if (faceRatio < 0.38) {
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Wajah terlalu jauh. Mohon dekatkan ke kamera.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'distance',
+                stillness: 'still',
+                summaryMessage: '⚠️ Wajah terlalu jauh! Dekatkan wajah hingga pas di dalam bingkai oval.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
-            if (faceWidthRatio > 0.72) {
-              validFrames = 0;
+            if (faceRatio > 0.82) {
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Wajah terlalu dekat. Mundurkan sedikit.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'distance',
+                stillness: 'still',
+                summaryMessage: '⚠️ Wajah terlalu dekat! Mundurkan wajah sedikit.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
 
+            // Centering relative to visible square viewport
             const faceCenterX = box.x + box.width / 2;
             const faceCenterY = box.y + box.height / 2;
-            const relX = faceCenterX / video.videoWidth;
-            const relY = faceCenterY / video.videoHeight;
+            const cropOffsetX = (video.videoWidth - visibleDim) / 2;
+            const cropOffsetY = (video.videoHeight - visibleDim) / 2;
+            const relVisibleX = (faceCenterX - cropOffsetX) / visibleDim;
+            const relVisibleY = (faceCenterY - cropOffsetY) / visibleDim;
 
-            if (relX < 0.22 || relX > 0.78 || relY < 0.16 || relY > 0.84) {
-              validFrames = 0;
+            if (relVisibleX < 0.24 || relVisibleX > 0.76 || relVisibleY < 0.18 || relVisibleY > 0.82) {
+              stillFrames = 0;
               setValidProgress(0);
-              setStatusText('Posisikan wajah tepat di tengah bingkai.');
-              setStatusType('warning');
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'offcenter',
+                stillness: 'still',
+                summaryMessage: 'Posisikan wajah tepat di tengah bingkai oval.',
+                isReadyForCapture: false,
+              });
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
 
-            // ─── All Conditions Met! Increment Auto-Verification ───
-            validFrames++;
-            const progress = Math.min(validFrames / targetFrames, 1);
+            // 5. Glasses & Accessories Obstruction Check (Multi-Layer Universal)
+            const glassesCheck = analyzeGlassesAndAccessories(video, detections.landmarks);
+            if (glassesCheck.hasGlassesOrObstruction) {
+              stillFrames = 0;
+              setValidProgress(0);
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'glasses',
+                pose: 'aligned',
+                stillness: 'still',
+                summaryMessage:
+                  glassesCheck.reason ||
+                  'Kacamata / aksesoris terdeteksi! Harap lepas kacamata & aksesoris wajah.',
+                isReadyForCapture: false,
+              });
+              isDetectingRef.current = false;
+              animationFrameRef.current = requestAnimationFrame(loop);
+              return;
+            }
+
+            // 6. Strict Stillness / Movement Verification
+            const currCenter = { x: faceCenterX, y: faceCenterY };
+            const currWidth = box.width;
+
+            let isMoving = false;
+            if (prevWidth > 0) {
+              const moveDist = Math.hypot(currCenter.x - prevCenter.x, currCenter.y - prevCenter.y);
+              const moveRatio = moveDist / currWidth;
+              const sizeDeltaRatio = Math.abs(currWidth - prevWidth) / currWidth;
+
+              if (moveRatio > 0.035 || sizeDeltaRatio > 0.04) {
+                isMoving = true;
+              }
+            }
+
+            prevCenter = currCenter;
+            prevWidth = currWidth;
+
+            if (isMoving) {
+              stillFrames = Math.max(0, stillFrames - 2);
+              const progress = Math.min(stillFrames / targetStillFrames, 1);
+              setValidProgress(progress);
+
+              setDiagnostics({
+                lighting: 'good',
+                accessories: 'clean',
+                pose: 'aligned',
+                stillness: 'moving',
+                summaryMessage: '⚠️ Wajah masih bergerak. Harap diam dan tatap kamera!',
+                isReadyForCapture: false,
+              });
+              isDetectingRef.current = false;
+              animationFrameRef.current = requestAnimationFrame(loop);
+              return;
+            }
+
+            // ── ALL BIOMETRIC CHECKS PASSED & USER IS STEADY! ──
+            stillFrames++;
+            const progress = Math.min(stillFrames / targetStillFrames, 1);
             setValidProgress(progress);
-            setStatusType('success');
 
-            if (validFrames < targetFrames) {
-              setStatusText(`Wajah terverifikasi! Tahan posisi... (${Math.round(progress * 100)}%)`);
+            const isComplete = stillFrames >= targetStillFrames;
+
+            setDiagnostics({
+              lighting: 'good',
+              accessories: 'clean',
+              pose: 'aligned',
+              stillness: 'still',
+              summaryMessage: isComplete
+                ? '✅ Verifikasi Berhasil! Mengambil presensi...'
+                : `Wajah terverifikasi! Diam & tahan posisi... (${Math.round(progress * 100)}%)`,
+              isReadyForCapture: isComplete,
+            });
+
+            if (!isComplete) {
               isDetectingRef.current = false;
               animationFrameRef.current = requestAnimationFrame(loop);
               return;
             }
 
-            // ─── Verification Complete: Automatic Capture ─────────
-            setStatusText('✅ Verifikasi Sukses! Mengambil presensi...');
+            // ── Automatic Snapshot Capture ─────────────────────
             stopDetectionLoop();
 
             if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
               try {
-                navigator.vibrate([60, 40, 60]);
+                navigator.vibrate([70, 30, 70]);
               } catch {}
             }
 
@@ -562,8 +856,10 @@ export default function FaceScanner({
     async (facing: 'user' | 'environment') => {
       stopVideo();
       setCameraError(null);
-      setStatusText('Menyalakan kamera...');
-      setStatusType('neutral');
+      setDiagnostics((prev) => ({
+        ...prev,
+        summaryMessage: 'Menyalakan kamera...',
+      }));
 
       if (
         typeof navigator === 'undefined' ||
@@ -573,8 +869,10 @@ export default function FaceScanner({
         const errorMsg =
           'Akses kamera membutuhkan koneksi aman (HTTPS). Pastikan situs dibuka dengan https://';
         setCameraError(errorMsg);
-        setStatusText(errorMsg);
-        setStatusType('error');
+        setDiagnostics((prev) => ({
+          ...prev,
+          summaryMessage: errorMsg,
+        }));
         return;
       }
 
@@ -620,8 +918,7 @@ export default function FaceScanner({
             ? 'Izin kamera ditolak. Harap izinkan akses kamera di browser.'
             : 'Kamera tidak ditemukan atau tidak dapat diakses.';
         setCameraError(msg);
-        setStatusText(msg);
-        setStatusType('error');
+        setDiagnostics((prev) => ({ ...prev, summaryMessage: msg }));
         return;
       }
 
@@ -643,15 +940,17 @@ export default function FaceScanner({
         }
 
         setIsCameraActive(true);
-        setStatusText('Posisikan wajah Anda di dalam bingkai');
-        setStatusType('neutral');
+        setDiagnostics((prev) => ({
+          ...prev,
+          summaryMessage: 'Posisikan wajah Anda di dalam bingkai',
+        }));
         startDetectionLoop();
       }
     },
     [startDetectionLoop, stopVideo]
   );
 
-  // ─── Instant AI Model Loading (Only 270KB Lightweight Models!) ──
+  // ─── Instant AI Model Loading (270KB Total) ───────────────────
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -659,8 +958,6 @@ export default function FaceScanner({
     const loadModels = async () => {
       try {
         const MODEL_URL = '/models';
-        // Only load lightweight models: TinyFaceDetector (193KB) + TinyLandmarks (77KB)
-        // No heavy 6.4MB ResNet-34 faceRecognitionNet!
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
@@ -674,7 +971,6 @@ export default function FaceScanner({
         console.error('Error loading face-api models', error);
         if (isMountedRef.current) {
           setIsModelLoaded(true);
-          setStatusText('Kamera siap digunakan.');
           startCamera(facingMode);
         }
       }
@@ -700,8 +996,6 @@ export default function FaceScanner({
     setRotation((prev) => (prev + 90) % 360);
   };
 
-  // Shared video/canvas transform style:
-  // scaleX(-1) mirror for selfie camera + rotation in degrees
   const transformCss = [
     facingMode === 'user' ? 'scaleX(-1)' : '',
     rotation !== 0 ? `rotate(${rotation}deg)` : '',
@@ -719,13 +1013,21 @@ export default function FaceScanner({
     transform: transformCss || undefined,
   };
 
+  // Determine overall status tone
+  const isError =
+    diagnostics.lighting !== 'good' || diagnostics.accessories !== 'clean';
+  const isWarning =
+    !isError && (diagnostics.pose !== 'aligned' || diagnostics.stillness === 'moving');
+  const isVerified =
+    !isError && !isWarning && validProgress > 0;
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4">
-      <div className="bg-white border border-zinc-200 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-md w-full relative overflow-y-auto max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/85 backdrop-blur-xl p-3 sm:p-4">
+      <div className="bg-white border border-zinc-200/90 rounded-[28px] sm:rounded-[34px] p-4 sm:p-6 shadow-[0_25px_70px_rgba(0,0,0,0.5)] max-w-md w-full relative overflow-y-auto max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-3.5 gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/20 shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -736,7 +1038,7 @@ export default function FaceScanner({
               </svg>
             </div>
             <div className="truncate">
-              <h3 className="text-sm sm:text-base font-bold text-zinc-900 truncate font-heading">
+              <h3 className="text-sm sm:text-base font-bold text-zinc-900 truncate font-heading tracking-tight">
                 {title}
               </h3>
               <p className="text-[11px] text-zinc-500 truncate">{subtitle}</p>
@@ -747,7 +1049,6 @@ export default function FaceScanner({
           <div className="flex items-center gap-1.5 shrink-0">
             {isCameraActive && (
               <>
-                {/* Rotate Button (0, 90, 180, 270) */}
                 <button
                   type="button"
                   onClick={handleRotateCamera}
@@ -763,10 +1064,8 @@ export default function FaceScanner({
                     />
                   </svg>
                   <span className="text-[10px] text-cyan-700 font-bold">{rotation}°</span>
-                  <span className="hidden sm:inline">Putar</span>
                 </button>
 
-                {/* Flip Camera Button */}
                 <button
                   type="button"
                   onClick={handleToggleCamera}
@@ -781,12 +1080,10 @@ export default function FaceScanner({
                       d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
                     />
                   </svg>
-                  <span className="hidden sm:inline">Ganti</span>
                 </button>
               </>
             )}
 
-            {/* Close Button */}
             <button
               type="button"
               onClick={() => {
@@ -803,7 +1100,7 @@ export default function FaceScanner({
           </div>
         </div>
 
-        {/* Video & Scanner Viewport */}
+        {/* Viewport & Cyber-HUD Scanner */}
         <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden mb-3 border border-indigo-500/30 shadow-inner flex items-center justify-center">
           <video
             ref={videoRef}
@@ -823,20 +1120,69 @@ export default function FaceScanner({
           {/* Futuristic laser scanline */}
           <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#06b6d4] animate-laser z-25 pointer-events-none" />
 
-          {/* Silhouette Face Guide Oval */}
+          {/* Sci-Fi Target Reticle Overlay */}
           {isCameraActive && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-25">
-              <div
-                className={`w-40 h-52 sm:w-52 sm:h-68 rounded-[50%] border-2 transition-all duration-200 ${
-                  validProgress > 0
-                    ? 'border-emerald-400 shadow-[0_0_35px_rgba(16,185,129,0.9)] scale-102 bg-emerald-500/15'
-                    : statusType === 'error'
-                    ? 'border-rose-400/80 border-dashed shadow-[0_0_20px_rgba(244,63,94,0.4)]'
-                    : statusType === 'warning'
-                    ? 'border-amber-400/80 border-dashed shadow-[0_0_20px_rgba(251,191,36,0.3)]'
-                    : 'border-cyan-400/50 border-dashed shadow-[0_0_20px_rgba(6,182,212,0.3)]'
-                }`}
-              />
+              {/* Corner HUD Brackets */}
+              <div className="w-48 h-60 sm:w-60 sm:h-74 relative flex items-center justify-center">
+                <div
+                  className={`absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 transition-colors duration-300 ${
+                    isVerified
+                      ? 'border-emerald-400'
+                      : isError
+                      ? 'border-rose-500'
+                      : isWarning
+                      ? 'border-amber-400'
+                      : 'border-cyan-400'
+                  }`}
+                />
+                <div
+                  className={`absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 transition-colors duration-300 ${
+                    isVerified
+                      ? 'border-emerald-400'
+                      : isError
+                      ? 'border-rose-500'
+                      : isWarning
+                      ? 'border-amber-400'
+                      : 'border-cyan-400'
+                  }`}
+                />
+                <div
+                  className={`absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 transition-colors duration-300 ${
+                    isVerified
+                      ? 'border-emerald-400'
+                      : isError
+                      ? 'border-rose-500'
+                      : isWarning
+                      ? 'border-amber-400'
+                      : 'border-cyan-400'
+                  }`}
+                />
+                <div
+                  className={`absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 transition-colors duration-300 ${
+                    isVerified
+                      ? 'border-emerald-400'
+                      : isError
+                      ? 'border-rose-500'
+                      : isWarning
+                      ? 'border-amber-400'
+                      : 'border-cyan-400'
+                  }`}
+                />
+
+                {/* Central Biometric Oval */}
+                <div
+                  className={`w-full h-full rounded-[50%] border-2 transition-all duration-300 ${
+                    isVerified
+                      ? 'border-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.85)] scale-102 bg-emerald-500/15'
+                      : isError
+                      ? 'border-rose-500/90 border-dashed shadow-[0_0_25px_rgba(244,63,94,0.45)] bg-rose-500/10'
+                      : isWarning
+                      ? 'border-amber-400/90 border-dashed shadow-[0_0_20px_rgba(251,191,36,0.35)]'
+                      : 'border-cyan-400/60 border-dashed shadow-[0_0_20px_rgba(6,182,212,0.3)]'
+                  }`}
+                />
+              </div>
             </div>
           )}
 
@@ -860,77 +1206,146 @@ export default function FaceScanner({
               ) : (
                 <>
                   <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
-                  <span className="text-xs font-medium text-zinc-500 animate-pulse">{statusText}</span>
+                  <span className="text-xs font-medium text-zinc-500 animate-pulse">
+                    {diagnostics.summaryMessage}
+                  </span>
                 </>
               )}
             </div>
           )}
         </div>
 
-        {/* Biometric Requirements Badges */}
-        <div className="grid grid-cols-3 gap-1.5 mb-2.5 text-[10px] text-zinc-500 text-center">
-          <div className="py-1 px-1.5 rounded-lg bg-zinc-50 border border-zinc-100 flex items-center justify-center gap-1">
-            <span>💡</span>
-            <span className="font-medium">Cahaya Terang</span>
+        {/* ── Real-Time Diagnostic HUD Checklist (2x2 Grid - Never Truncated) ── */}
+        <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+          {/* 1. Lighting Indicator */}
+          <div
+            className={`py-2 px-2.5 rounded-xl border flex items-center gap-2 transition-colors ${
+              diagnostics.lighting === 'good'
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-700'
+            }`}
+          >
+            <span className="text-sm">{diagnostics.lighting === 'good' ? '💡' : '🌑'}</span>
+            <div className="min-w-0">
+              <p className="text-[10px] text-zinc-400 font-medium leading-none mb-0.5">Cahaya</p>
+              <p className="font-bold text-[11px] truncate">
+                {diagnostics.lighting === 'good'
+                  ? 'Terang & Jelas'
+                  : diagnostics.lighting === 'dark'
+                  ? 'Terlalu Gelap'
+                  : 'Silau / Backlight'}
+              </p>
+            </div>
           </div>
-          <div className="py-1 px-1.5 rounded-lg bg-zinc-50 border border-zinc-100 flex items-center justify-center gap-1">
-            <span>👓</span>
-            <span className="font-medium">Tanpa Kacamata</span>
+
+          {/* 2. Accessories / Glasses Indicator */}
+          <div
+            className={`py-2 px-2.5 rounded-xl border flex items-center gap-2 transition-colors ${
+              diagnostics.accessories === 'clean'
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-700'
+            }`}
+          >
+            <span className="text-sm">{diagnostics.accessories === 'clean' ? '👓' : '🚫'}</span>
+            <div className="min-w-0">
+              <p className="text-[10px] text-zinc-400 font-medium leading-none mb-0.5">Aksesoris</p>
+              <p className="font-bold text-[11px] truncate">
+                {diagnostics.accessories === 'clean' ? 'Bebas Kacamata' : 'Ada Kacamata!'}
+              </p>
+            </div>
           </div>
-          <div className="py-1 px-1.5 rounded-lg bg-zinc-50 border border-zinc-100 flex items-center justify-center gap-1">
-            <span>👤</span>
-            <span className="font-medium">Wajah Lurus</span>
+
+          {/* 3. Head Pose & Distance Indicator */}
+          <div
+            className={`py-2 px-2.5 rounded-xl border flex items-center gap-2 transition-colors ${
+              diagnostics.pose === 'aligned'
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            <span className="text-sm">{diagnostics.pose === 'aligned' ? '👤' : '⚠️'}</span>
+            <div className="min-w-0">
+              <p className="text-[10px] text-zinc-400 font-medium leading-none mb-0.5">Posisi</p>
+              <p className="font-bold text-[11px] truncate">
+                {diagnostics.pose === 'aligned'
+                  ? 'Pas di Bingkai'
+                  : diagnostics.pose === 'distance'
+                  ? 'Jarak Kurang Pas'
+                  : diagnostics.pose === 'tilted'
+                  ? 'Kepala Miring'
+                  : diagnostics.pose === 'turned'
+                  ? 'Wajah Menoleh'
+                  : 'Kurang Tengah'}
+              </p>
+            </div>
+          </div>
+
+          {/* 4. Stillness / Stability Indicator */}
+          <div
+            className={`py-2 px-2.5 rounded-xl border flex items-center gap-2 transition-colors ${
+              diagnostics.stillness === 'still'
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            <span className="text-sm">{diagnostics.stillness === 'still' ? '🛑' : '🔄'}</span>
+            <div className="min-w-0">
+              <p className="text-[10px] text-zinc-400 font-medium leading-none mb-0.5">Kestabilan</p>
+              <p className="font-bold text-[11px] truncate">
+                {diagnostics.stillness === 'still' ? 'Wajah Diam' : 'Wajah Bergerak'}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden mb-2.5">
+        {/* Progress Bar (Glows green when holding steady) */}
+        <div className="w-full bg-zinc-100 h-2.5 rounded-full overflow-hidden mb-2.5 border border-zinc-200/50">
           <div
-            className={`h-full transition-all duration-200 ease-out ${
+            className={`h-full transition-all duration-150 ease-out ${
               validProgress >= 1
-                ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]'
+                ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]'
                 : validProgress > 0
-                ? 'bg-gradient-to-r from-cyan-500 to-emerald-500'
+                ? 'bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-500'
                 : 'bg-zinc-200'
             }`}
             style={{ width: `${validProgress * 100}%` }}
           />
         </div>
 
-        {/* Real-Time Live Status Feedback */}
+        {/* Dynamic Animated Alert Banner */}
         <div
-          className={`flex items-center justify-center gap-2 mb-3.5 px-3 py-2.5 rounded-xl border text-center transition-colors ${
-            statusType === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : statusType === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-700'
-              : statusType === 'warning'
-              ? 'bg-amber-50 border-amber-200 text-amber-800'
-              : 'bg-zinc-50 border-zinc-100 text-zinc-700'
+          className={`flex items-center justify-center gap-2 mb-3.5 px-3.5 py-2.5 rounded-2xl border text-center transition-all ${
+            isVerified
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900 shadow-sm'
+              : isError
+              ? 'bg-rose-50 border-rose-300 text-rose-800 shadow-sm animate-pulse'
+              : isWarning
+              ? 'bg-amber-50 border-amber-300 text-amber-900 shadow-sm'
+              : 'bg-zinc-50 border-zinc-200 text-zinc-700'
           }`}
         >
           <span
             className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              statusType === 'success'
+              isVerified
                 ? 'bg-emerald-500 animate-pulse'
-                : statusType === 'error'
+                : isError
                 ? 'bg-rose-500'
-                : statusType === 'warning'
+                : isWarning
                 ? 'bg-amber-500'
                 : 'bg-cyan-500 animate-pulse'
             }`}
           />
-          <p className="text-xs font-semibold leading-snug">{statusText}</p>
+          <p className="text-xs font-bold leading-snug">{diagnostics.summaryMessage}</p>
         </div>
 
-        {/* Only Cancel Button: No Manual Capture Button! */}
+        {/* Only Cancel Button: 100% Automatic Scan */}
         <button
           type="button"
           onClick={() => {
             stopVideo();
             onCancel();
           }}
-          className="w-full py-2.5 px-5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 font-semibold transition-colors text-xs cursor-pointer"
+          className="w-full py-2.5 px-5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-semibold transition-colors text-xs cursor-pointer"
         >
           Batal
         </button>
