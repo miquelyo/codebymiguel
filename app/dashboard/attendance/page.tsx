@@ -268,7 +268,7 @@ export default function AttendancePage() {
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [isLoadingToday, setIsLoadingToday] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scannerMode, setScannerMode] = useState<'in' | 'out' | null>(null);
+  const [scannerMode, setScannerMode] = useState<'in' | 'out' | 'test' | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
@@ -571,8 +571,21 @@ export default function AttendancePage() {
           </p>
         </div>
 
-        {/* Live Clock & GPS Chip */}
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        {/* Live Clock & GPS Chip + Test Scan Button */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          {/* Dedicated Test Scan Wajah Button */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            type="button"
+            onClick={() => setScannerMode('test')}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700 text-white text-xs sm:text-[13px] font-bold shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            title="Uji coba kamera & deteksi wajah tanpa mengubah absensi"
+          >
+            <CameraIcon className="w-4 h-4 text-white" />
+            <span>Test Scan Wajah</span>
+          </motion.button>
+
           <div className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-white border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex items-center justify-between sm:justify-start gap-3">
             <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
@@ -693,6 +706,16 @@ export default function AttendancePage() {
               ✓ Anda telah berhasil check-in untuk hari ini.
             </div>
           )}
+
+          {/* Quick test camera button inside card */}
+          <button
+            type="button"
+            onClick={() => setScannerMode('test')}
+            className="w-full py-2.5 px-3 rounded-xl border border-dashed border-zinc-300 hover:border-zinc-400 bg-zinc-50 hover:bg-zinc-100 text-[11px] font-semibold text-zinc-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <CameraIcon className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Test Kamera Scan Wajah (Bypass Jam & Status)</span>
+          </button>
         </motion.div>
 
         {/* ACTION CARD 2: CHECK OUT */}
@@ -894,51 +917,32 @@ export default function AttendancePage() {
       {/* ── MODAL: FACE SCANNER ── */}
       <AnimatePresence>
         {scannerMode && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-[24px] sm:rounded-[32px] p-4 sm:p-6 max-w-lg w-full shadow-2xl border border-zinc-200 space-y-4 max-h-[92vh] overflow-y-auto relative"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-zinc-900 font-heading">
-                    {scannerMode === 'in' ? 'Biometric Face Check-In' : 'Biometric Face Check-Out'}
-                  </h3>
-                  <p className="text-[10px] sm:text-[11px] text-zinc-400 mt-0.5">
-                    Posisikan wajah Anda tepat di dalam lingkaran scanner
-                  </p>
-                </div>
-                <button
-                  onClick={() => setScannerMode(null)}
-                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 transition-colors cursor-pointer shrink-0"
-                >
-                  <XIcon className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* The Face Scanner component */}
-              <div className="rounded-2xl overflow-hidden bg-zinc-900">
-                <FaceScanner
-                  onFaceDetected={(_descriptor, imageBase64) => {
-                    if (scannerMode === 'in') {
-                      handleCheckIn(imageBase64);
-                    } else if (scannerMode === 'out') {
-                      handleCheckOut(imageBase64);
-                    }
-                  }}
-                  onCancel={() => setScannerMode(null)}
-                />
-              </div>
-
-              <div className="text-center pt-1">
-                <p className="text-[10px] sm:text-[11px] text-zinc-400 font-medium">
-                  Sistem otomatis mendeteksi wajah dan memverifikasi kehadiran.
-                </p>
-              </div>
-            </motion.div>
-          </div>
+          <FaceScanner
+            title={
+              scannerMode === 'in'
+                ? 'Biometric Face Check-In'
+                : scannerMode === 'out'
+                ? 'Biometric Face Check-Out'
+                : 'Uji Coba / Test Scan Wajah'
+            }
+            subtitle={
+              scannerMode === 'test'
+                ? 'Mode testing: Memeriksa kelurusan & orientasi kamera'
+                : 'Posisikan wajah Anda tepat di dalam bingkai scanner'
+            }
+            onFaceDetected={(_descriptor, imageBase64) => {
+              if (scannerMode === 'in') {
+                handleCheckIn(imageBase64);
+              } else if (scannerMode === 'out') {
+                handleCheckOut(imageBase64);
+              } else if (scannerMode === 'test') {
+                toast.success('Test Scan Berhasil! Wajah berhasil terdeteksi.');
+                setPreviewImage(imageBase64);
+                setScannerMode(null);
+              }
+            }}
+            onCancel={() => setScannerMode(null)}
+          />
         )}
       </AnimatePresence>
 

@@ -6,9 +6,16 @@ import * as faceapi from 'face-api.js';
 interface FaceScannerProps {
   onFaceDetected: (descriptor: Float32Array, imageBase64: string) => void;
   onCancel: () => void;
+  title?: string;
+  subtitle?: string;
 }
 
-export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerProps) {
+export default function FaceScanner({
+  onFaceDetected,
+  onCancel,
+  title = 'Verifikasi Biometrik Wajah',
+  subtitle = 'Arahkan pandangan tepat ke kamera',
+}: FaceScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -18,14 +25,29 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [statusText, setStatusText] = useState('Memuat model AI...');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [rotation, setRotation] = useState<number>(0);
-  const rotationRef = useRef<number>(0);
+  
+  // Rotation preference: loaded from localStorage if user previously rotated
+  const [rotation, setRotation] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('codebymiguel_camera_rotation');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if ([0, 90, 180, 270].includes(parsed)) return parsed;
+      }
+    }
+    return 0;
+  });
+  const rotationRef = useRef<number>(rotation);
+
   const [validProgress, setValidProgress] = useState(0);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   useEffect(() => {
     rotationRef.current = rotation;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('codebymiguel_camera_rotation', String(rotation));
+    }
   }, [rotation]);
 
   // ─── Stop Detection & Video ───────────────────────────────────
@@ -58,20 +80,25 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
 
   // ─── Image Capture Helper ─────────────────────────────────────
 
-  const captureImage = (video: HTMLVideoElement, isUserFacing: boolean, rot: number = 0): string => {
+  const captureImage = (
+    video: HTMLVideoElement,
+    isUserFacing: boolean,
+    rotDeg: number = 0
+  ): string => {
     const canvas = document.createElement('canvas');
-    const isSideways = rot === 90 || rot === 270;
     const vW = video.videoWidth || 640;
     const vH = video.videoHeight || 480;
 
-    canvas.width = isSideways ? vH : vW;
-    canvas.height = isSideways ? vW : vH;
+    const is90or270 = rotDeg === 90 || rotDeg === 270;
+    canvas.width = is90or270 ? vH : vW;
+    canvas.height = is90or270 ? vW : vH;
+
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);
-      if (rot !== 0) {
-        ctx.rotate((rot * Math.PI) / 180);
+      if (rotDeg !== 0) {
+        ctx.rotate((rotDeg * Math.PI) / 180);
       }
       if (isUserFacing) {
         ctx.scale(-1, 1);
@@ -96,7 +123,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
 
       if (!video || !canvas || isDetectingRef.current) return;
 
-      // Ensure video frame is ready and has valid dimensions
       if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         return;
       }
@@ -113,7 +139,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
       try {
         isDetectingRef.current = true;
 
-        // Use TinyFaceDetector: ultra-lightweight & fast for mobile devices
         const detectorOptions = new faceapi.TinyFaceDetectorOptions({
           inputSize: 320,
           scoreThreshold: 0.45,
@@ -137,7 +162,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
 
         if (!videoRef.current) return;
 
-        // Draw bounding box & landmarks
         if (detections && canvasRef.current) {
           const resized = faceapi.resizeResults(detections, displaySize);
           faceapi.draw.drawDetections(canvasRef.current, resized);
@@ -156,7 +180,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         const box = detections.detection?.box || detections.box;
         if (!box) return;
 
-        // Confidence check
         const score = detections.detection?.score ?? 0.8;
         if (score < 0.4) {
           validFrames = 0;
@@ -165,7 +188,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
           return;
         }
 
-        // Distance check (relative to video width to support 9:16 portrait on mobile)
         const faceWidthRatio = box.width / video.videoWidth;
         if (faceWidthRatio < 0.15) {
           validFrames = 0;
@@ -174,7 +196,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
           return;
         }
 
-        // Movement check: forgiving for natural handheld phone shake
         const currCenter = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
         const distance = Math.hypot(currCenter.x - lastCenter.x, currCenter.y - lastCenter.y);
         lastCenter = currCenter;
@@ -197,8 +218,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
           return;
         }
 
-        // Complete & Capture
-        setStatusText('Wajah terverifikasi! Memproses absensi...');
+        setStatusText('Wajah terverifikasi! Memproses...');
         stopDetectionLoop();
 
         const imageBase64 = captureImage(video, facingMode === 'user', rotationRef.current);
@@ -222,19 +242,23 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
       setCameraError(null);
       setStatusText('Mengaktifkan kamera...');
 
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        const errorMsg = 'Akses kamera membutuhkan koneksi aman (HTTPS). Pastikan situs dibuka dengan https://';
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        const errorMsg =
+          'Akses kamera membutuhkan koneksi aman (HTTPS). Pastikan situs dibuka dengan https://';
         setCameraError(errorMsg);
         setStatusText(errorMsg);
         return;
       }
 
-      // Natural camera constraints supporting portrait & square framing on mobile
+      // Constraints with graceful fallbacks
       const constraintsList: MediaStreamConstraints[] = [
         {
           video: {
             facingMode: { ideal: facing },
-            aspectRatio: { ideal: 1 },
             width: { ideal: 720 },
             height: { ideal: 720 },
           },
@@ -243,26 +267,19 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         {
           video: {
             facingMode: { ideal: facing },
-            width: { ideal: 720 },
+            width: { ideal: 640 },
           },
           audio: false,
         },
         {
-          video: {
-            facingMode: { ideal: facing },
-          },
+          video: { facingMode: { ideal: facing } },
           audio: false,
         },
         {
-          video: {
-            facingMode: facing,
-          },
+          video: { facingMode: facing },
           audio: false,
         },
-        {
-          video: true,
-          audio: false,
-        },
+        { video: true, audio: false },
       ];
 
       let stream: MediaStream | null = null;
@@ -274,9 +291,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
           if (stream) break;
         } catch (err: any) {
           lastError = err;
-          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-            break;
-          }
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') break;
         }
       }
 
@@ -302,7 +317,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         try {
           await video.play();
         } catch {
-          // Play might require loadedmetadata on some mobile devices
           video.onloadedmetadata = () => {
             video.play().catch(console.warn);
           };
@@ -324,13 +338,11 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
     const loadModels = async () => {
       try {
         const MODEL_URL = '/models';
-        // Tiny Face Detector + Tiny Landmarks (loads in ~270KB total, lightning fast on mobile)
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
         ]);
 
-        // Background load recognition if available without blocking camera preview
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL).catch((e) => {
           console.warn('Optional recognition model failed to load:', e);
         });
@@ -342,7 +354,6 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
       } catch (error) {
         console.error('Error loading face-api models', error);
         if (isMounted) {
-          // Still allow camera to start so manual capture can be used
           setIsModelLoaded(true);
           setStatusText('Modul AI otomatis tidak dapat dimuat. Anda dapat mengambil foto manual.');
           startCamera(facingMode);
@@ -356,14 +367,18 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
       isMounted = false;
       stopVideo();
     };
-  }, []); // Run once on mount
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Camera Switch ────────────────────────────────────────────
+  // ─── Camera Switch & Rotation ─────────────────────────────────
 
   const handleToggleCamera = () => {
     const nextMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextMode);
     startCamera(nextMode);
+  };
+
+  const handleRotateCamera = () => {
+    setRotation((prev) => (prev + 90) % 360);
   };
 
   // ─── Manual Fallback Capture ──────────────────────────────────
@@ -379,9 +394,28 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
     onFaceDetected(new Float32Array(128), imageBase64);
   };
 
+  // Shared video/canvas transform style:
+  // scaleX(-1) mirror for selfie camera + rotation in degrees
+  const transformCss = [
+    facingMode === 'user' ? 'scaleX(-1)' : '',
+    rotation !== 0 ? `rotate(${rotation}deg)` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const mediaStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    transformOrigin: 'center center',
+    transform: transformCss || undefined,
+  };
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-background/80 backdrop-blur-md p-3 sm:p-4">
-      <div className="glass-panel border border-border/80 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-md w-full relative overflow-y-auto max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-md w-full relative overflow-y-auto max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-3.5 gap-2">
           <div className="flex items-center gap-3 min-w-0">
@@ -396,52 +430,73 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
               </svg>
             </div>
             <div className="truncate">
-              <h3 className="text-sm sm:text-base font-bold text-foreground truncate" style={{ fontFamily: 'var(--font-heading)' }}>
-                Verifikasi Biometrik Wajah
+              <h3
+                className="text-sm sm:text-base font-bold text-zinc-900 truncate font-heading"
+              >
+                {title}
               </h3>
-              <p className="text-[11px] text-muted truncate">Arahkan pandangan tepat ke kamera</p>
+              <p className="text-[11px] text-zinc-500 truncate">{subtitle}</p>
             </div>
           </div>
 
-          {/* Controls: Rotate & Flip Camera */}
-          {isCameraActive && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setRotation((prev) => (prev + 90) % 360)}
-                className="p-2 sm:p-2.5 rounded-xl bg-surface-hover hover:bg-border text-foreground transition-colors flex items-center gap-1 text-xs font-semibold border border-border/80 cursor-pointer"
-                title={`Putar Kamera (Saat ini: ${rotation}°)`}
-              >
-                <svg className="w-4 h-4 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                {rotation !== 0 && <span className="text-[10px] text-cyan-400 font-bold">{rotation}°</span>}
-                <span className="hidden sm:inline">Putar</span>
-              </button>
+          {/* Controls: Rotate, Flip, Close */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isCameraActive && (
+              <>
+                {/* Rotate Button (0, 90, 180, 270) */}
+                <button
+                  type="button"
+                  onClick={handleRotateCamera}
+                  className="p-2 sm:p-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-colors flex items-center gap-1 text-xs font-semibold border border-zinc-200 cursor-pointer"
+                  title={`Putar Kamera (Saat ini: ${rotation}°)`}
+                >
+                  <svg className="w-4 h-4 text-cyan-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <span className="text-[10px] text-cyan-700 font-bold">{rotation}°</span>
+                  <span className="hidden sm:inline">Putar</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleToggleCamera}
-                className="p-2 sm:p-2.5 rounded-xl bg-surface-hover hover:bg-border text-foreground transition-colors flex items-center gap-1 text-xs font-semibold border border-border/80 cursor-pointer"
-                title="Ganti Kamera Depan/Belakang"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                  />
-                </svg>
-                <span className="hidden sm:inline">Ganti</span>
-              </button>
-            </div>
-          )}
+                {/* Flip Camera Button */}
+                <button
+                  type="button"
+                  onClick={handleToggleCamera}
+                  className="p-2 sm:p-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-colors flex items-center gap-1 text-xs font-semibold border border-zinc-200 cursor-pointer"
+                  title="Ganti Kamera Depan/Belakang"
+                >
+                  <svg className="w-4 h-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">Ganti</span>
+                </button>
+              </>
+            )}
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => {
+                stopVideo();
+                onCancel();
+              }}
+              className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
+              title="Tutup"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Video & Scanner Container */}
@@ -452,23 +507,13 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
             muted
             playsInline
             webkit-playsinline="true"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: `${facingMode === 'user' ? 'scaleX(-1) ' : ''}${rotation !== 0 ? `rotate(${rotation}deg)` : ''}`.trim() || undefined,
-            }}
-            className="absolute inset-0 w-full h-full object-cover z-10"
+            style={mediaStyle}
+            className="z-10"
           />
           <canvas
             ref={canvasRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: `${facingMode === 'user' ? 'scaleX(-1) ' : ''}${rotation !== 0 ? `rotate(${rotation}deg)` : ''}`.trim() || undefined,
-            }}
-            className="absolute inset-0 z-20 w-full h-full object-cover pointer-events-none"
+            style={{ ...mediaStyle, pointerEvents: 'none' }}
+            className="z-20"
           />
 
           {/* Futuristic laser scanline */}
@@ -489,10 +534,10 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
 
           {/* Loading or Error Overlay */}
           {(!isModelLoaded || !isCameraActive) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface/90 backdrop-blur-xs p-6 z-30 text-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 backdrop-blur-xs p-6 z-30 text-center">
               {cameraError ? (
                 <>
-                  <div className="w-12 h-12 rounded-full bg-danger/10 text-danger flex items-center justify-center mb-3">
+                  <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
                         strokeLinecap="round"
@@ -502,20 +547,27 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
                       />
                     </svg>
                   </div>
-                  <p className="text-xs text-danger font-medium max-w-xs">{cameraError}</p>
+                  <p className="text-xs text-rose-600 font-medium max-w-xs">{cameraError}</p>
                 </>
               ) : (
                 <>
-                  <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mb-3" />
-                  <span className="text-xs font-medium text-muted animate-pulse">{statusText}</span>
+                  <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
+                  <span className="text-xs font-medium text-zinc-500 animate-pulse">{statusText}</span>
                 </>
               )}
             </div>
           )}
         </div>
 
+        {/* Rotation quick hint */}
+        {rotation !== 0 && (
+          <p className="text-[10px] text-cyan-600 font-semibold text-center mb-2">
+            Orientasi disesuaikan: {rotation}° (Tersimpan otomatis)
+          </p>
+        )}
+
         {/* Progress Bar */}
-        <div className="w-full bg-surface-hover h-1.5 rounded-full overflow-hidden mb-3">
+        <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden mb-3">
           <div
             className="bg-emerald-500 h-full transition-all duration-300 ease-out"
             style={{ width: `${validProgress * 100}%` }}
@@ -523,13 +575,13 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
         </div>
 
         {/* Status Text Indicator */}
-        <div className="flex items-center justify-center gap-2 mb-4 px-2 py-2 rounded-xl bg-surface-hover/70 text-center">
+        <div className="flex items-center justify-center gap-2 mb-4 px-2 py-2 rounded-xl bg-zinc-50 border border-zinc-100 text-center">
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
               validProgress > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
             }`}
           />
-          <p className="text-xs font-medium text-foreground truncate">{statusText}</p>
+          <p className="text-xs font-medium text-zinc-700 truncate">{statusText}</p>
         </div>
 
         {/* Actions */}
@@ -538,7 +590,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
             <button
               type="button"
               onClick={handleManualCapture}
-              className="flex-1 py-2.5 px-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs shadow-sm"
+              className="flex-1 py-2.5 px-4 rounded-xl bg-zinc-900 hover:bg-black text-white font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs shadow-sm cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
@@ -559,7 +611,7 @@ export default function FaceScanner({ onFaceDetected, onCancel }: FaceScannerPro
               stopVideo();
               onCancel();
             }}
-            className="py-2.5 px-5 rounded-xl bg-surface-hover text-muted hover:text-foreground font-semibold hover:bg-border transition-colors text-xs"
+            className="py-2.5 px-5 rounded-xl bg-zinc-100 text-zinc-600 hover:text-zinc-900 font-semibold hover:bg-zinc-200 transition-colors text-xs cursor-pointer"
           >
             Batal
           </button>
